@@ -387,9 +387,14 @@ export class FileTree {
     node.loading = true;
     try {
       const listing = await this.options.api.list(node.path);
-      node.children = listing.entries
-        .filter((entry) => entry.path !== null)
-        .map((entry) => nodeFromEntry(entry, node.depth + 1));
+      const addressable = listing.entries.filter((entry) => entry.path !== null);
+      const hidden = listing.entries.length - addressable.length;
+      node.children = addressable.map((entry) => nodeFromEntry(entry, node.depth + 1));
+      if (hidden > 0) {
+        // Names that are not valid UTF-8 cannot round trip through JSON, so they are
+        // not shown. Saying so beats silently pretending they do not exist.
+        this.notify(`${hidden} entr${hidden === 1 ? "y" : "ies"} with non-UTF-8 names not shown`);
+      }
       node.error = null;
       for (const child of node.children) {
         this.nodeByPath.set(child.path, child);

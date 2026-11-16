@@ -236,7 +236,7 @@ mod tests {
             return;
         }
         let certs = certificates();
-        let mut config = config_for(&certs, false);
+        let mut config = config_for(certs, false);
         config.ssl_cert = Some(certs.dir.join("does-not-exist.pem"));
         let error = server_config(&config).unwrap_err().to_string();
         assert!(error.contains("does-not-exist.pem"), "{error}");
@@ -249,8 +249,8 @@ mod tests {
             return;
         }
         let certs = certificates();
-        assert!(server_config(&config_for(&certs, false)).is_ok());
-        assert!(server_config(&config_for(&certs, true)).is_ok());
+        assert!(server_config(&config_for(certs, false)).is_ok());
+        assert!(server_config(&config_for(certs, true)).is_ok());
     }
 
     #[tokio::test]
@@ -261,7 +261,7 @@ mod tests {
         }
         let certs = certificates();
         let state = crate::state::AppState::new(
-            config_for(&certs, false),
+            config_for(certs, false),
             crate::stats::Stats::new(),
         );
         let app = crate::server::router(state.clone());
@@ -276,7 +276,7 @@ mod tests {
             .await;
         });
 
-        let client = client_config(&certs, true);
+        let client = client_config(certs, true);
         let response = get(client, address, "/api/info").await.unwrap();
         assert!(response.starts_with("HTTP/1.1 200"), "{response}");
         let _ = stop_tx.send(());
@@ -290,7 +290,7 @@ mod tests {
         }
         let certs = certificates();
         let state = crate::state::AppState::new(
-            config_for(&certs, true),
+            config_for(certs, true),
             crate::stats::Stats::new(),
         );
         let app = crate::server::router(state.clone());
@@ -308,11 +308,11 @@ mod tests {
         // Without a client certificate the request must fail. TLS 1.3 lets the client
         // handshake "complete" before the server's rejection arrives, so the failure
         // only shows up on the first read.
-        let anonymous = client_config(&certs, false);
+        let anonymous = client_config(certs, false);
         assert!(get(anonymous, address, "/api/info").await.is_err());
 
         // With the CA-signed client certificate it succeeds.
-        let authenticated = client_config(&certs, true);
+        let authenticated = client_config(certs, true);
         let response = get(authenticated, address, "/api/info").await.unwrap();
         assert!(response.starts_with("HTTP/1.1 200"), "{response}");
         let _ = stop_tx.send(());

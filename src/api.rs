@@ -123,11 +123,13 @@ async fn download_inner(
     let path = parse_path(query)?;
     fs::enforce_roots(roots(state), &path)?;
 
-    let metadata = std::fs::symlink_metadata(&path)?;
+    // Downloads follow a symlink to its target: clicking download on a link means "the
+    // file behind it". `enforce_roots` canonicalises, so a link cannot escape the roots.
+    let metadata = std::fs::metadata(&path)?;
     if metadata.is_dir() {
         return Err(ApiError::bad_request("directories must be downloaded as an archive"));
     }
-    if !metadata.file_type().is_file() {
+    if !metadata.is_file() {
         return Err(ApiError::bad_request("only regular files can be downloaded"));
     }
 

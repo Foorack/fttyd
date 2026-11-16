@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
@@ -330,6 +330,29 @@ test("dragging the splitter resizes the terminal and persists", async ({ page })
       () => getComputedStyle(document.querySelector(".app")!).getPropertyValue("--sidebar-width").trim(),
     );
     expect(parseFloat(width)).toBeGreaterThan(400);
+  } finally {
+    await close();
+  }
+});
+
+test("downloading a symlink follows it to the file", async ({ page, request }) => {
+  const fixture = makeFixture("symlink");
+  const { server, close } = await openWithFixture(fixture);
+  try {
+    const response = await request.get(
+      `${server.baseURL}/api/download?path=${encodeURIComponent(`${fixture.root}/link.txt`)}`,
+    );
+    expect(response.status()).toBe(200);
+    expect(await response.text()).toBe("alpha");
+
+    // A symlink pointing at a directory cannot be downloaded as a file body.
+    mkdirSync(`${fixture.root}/dir-target`);
+    symlinkSync(`${fixture.root}/dir-target`, `${fixture.root}/dir-link`);
+    const directory = await request.get(
+      `${server.baseURL}/api/download?path=${encodeURIComponent(`${fixture.root}/dir-link`)}`,
+    );
+    expect(directory.status()).toBe(400);
+    await page.goto(server.baseURL);
   } finally {
     await close();
   }

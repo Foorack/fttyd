@@ -39,8 +39,8 @@ Read-only is the default, exactly like ttyd: without `-W`, clients cannot type i
 ### Sidebar
 
 - **Gauges** — CPU, memory and the disk that holds the current directory, drawn in monospace block characters with the numeric value beside every bar.
-- **File tree** — lazy-loading, keyboard navigable, sorted directories first, hidden-file toggle, sizes and mtimes, symlinks marked and never followed.
-- **Downloads** — single files with `Range` support, folders streamed as `zip` or `tar.gz` (ZIP64, mtime and permissions preserved, nothing written to disk). A folder download of a tree containing unreadable files or special files still succeeds; what was skipped is listed in `fttyd-archive-report.txt` inside the archive.
+- **File tree** — lazy-loading, keyboard navigable, sorted directories first, hidden-file toggle, sizes and mtimes, symlinks marked and never descended into. Entries whose names are not valid UTF-8 cannot be addressed over JSON, so the status line says how many were omitted rather than hiding them silently.
+- **Downloads** — single files with `Range` support (a symlink is followed to its target), folders streamed as `zip` or `tar.gz` (ZIP64, mtime and permissions preserved, nothing written to disk). A folder download of a tree containing unreadable files or special files still succeeds; what was skipped is listed in `fttyd-archive-report.txt` inside the archive. Archives never follow symlinks, so a link is stored as a link.
 - **Uploads** — chunked and resumable, with a free-space check before the first byte and an atomic rename when the last chunk lands. Drag files (or folders) from your desktop onto the tree.
 - **Follow the shell** — the tree tracks the shell's working directory through `/proc`; navigating by hand pins it, and the ◎ button jumps back.
 - **Open terminal here** — types a quoted `cd` into the attached terminal.
