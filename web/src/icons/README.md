@@ -11,7 +11,7 @@ bundled by Vite, so they end up inside the single binary.
 | `folder-controller.svg` | the "show hidden files" toggle |
 | `folder-include.svg` | the "new folder" action |
 | `folder-upload.svg` | the "upload files" action |
-| `folder-routes.svg` | the "follow the shell" toggle |
+| `folder-routes.svg` | the "follow the shell" toggle (recoloured `#43a047` → `#0d47a1`: the toolbar already has one green) |
 | `folder-base.svg` | a directory in the tree |
 | `folder-admin.svg` | a directory that cannot be opened |
 | `document.svg` | a file or symlink in the tree |
