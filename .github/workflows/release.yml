@@ -1,0 +1,175 @@
+name: Release
+
+# A version tag builds two static binaries, attaches them to a GitHub release, and
+# publishes the crate. crates.io authentication is OIDC trusted publishing: no API token
+# is stored here, crates.io issues a 30-minute token to this workflow file in this
+# repository.
+on:
+  push:
+    tags: ["v*"]
+  # Rehearse everything without spending a version number or creating a release.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Publish to crates.io with --dry-run
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  verify:
+    name: tag matches Cargo.toml
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: |
+          set -euo pipefail
+          version="$(cargo metadata --no-deps --format-version 1 \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["version"])')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "${GITHUB_REF_NAME#v}" != "$version" ]]; then
+            echo "tag $GITHUB_REF_NAME does not match Cargo.toml version $version" >&2
+            exit 1
+          fi
+
+  binaries:
+    name: ${{ matrix.target }}
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-musl
+          - aarch64-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - uses: oven-sh/setup-bun@v2
+
+      # The crate embeds the frontend, so it has to exist before `cargo build`.
+      - run: bun install --frozen-lockfile
+        working-directory: web
+      - run: bun run build
+        working-directory: web
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - run: cross build --locked --release --target ${{ matrix.target }}
+
+      - name: Package
+        env:
+          TARGET: ${{ matrix.target }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          binary="target/${TARGET}/release/fttyd"
+          file "$binary"
+          if ! file "$binary" | grep -qE "statically linked|static-pie"; then
+            echo "expected a static binary, got a dynamically linked one" >&2
+            exit 1
+          fi
+          if readelf -d "$binary" | grep -q NEEDED; then
+            echo "binary still has dynamic dependencies" >&2
+            exit 1
+          fi
+          name="fttyd-${VERSION}-${TARGET}"
+          mkdir -p "dist/${name}/man"
+          cp "$binary" "dist/${name}/fttyd"
+          cp README.md LICENSE "dist/${name}/"
+          cp man/fttyd.1 "dist/${name}/man/"
+          tar -C dist -czf "dist/${name}.tar.gz" "$name"
+          rm -rf "dist/${name}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fttyd-${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  crates-io:
+    name: crates.io
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: read
+      # Required to request the OIDC token crates.io exchanges for a publish token.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: oven-sh/setup-bun@v2
+
+      # The published crate carries the built bundle; untracked `web/dist` is why the
+      # publish step needs --allow-dirty.
+      - run: bun install --frozen-lockfile
+        working-directory: web
+      - run: bun run build
+        working-directory: web
+
+      - run: cargo test --locked
+      - run: cargo package --locked --allow-dirty
+
+      - name: Authenticate with crates.io
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Publish
+        if: github.event_name == 'push' || !inputs.dry_run
+        run: cargo publish --locked --allow-dirty
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+
+      - name: Publish (dry run)
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
+        run: cargo publish --locked --allow-dirty --dry-run
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+
+  github-release:
+    name: GitHub release
+    needs: [verify, binaries]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum ./*.tar.gz > SHA256SUMS && cat SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
+          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -119,9 +119,13 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
       tree), `include` ships it, and `cargo publish --dry-run` verifies without bun
 - [x] Package metadata: repository, keywords, categories (no dry-run warnings)
 
-- [x] Release workflow `.github/workflows/publish.yml`: tag-driven, OIDC trusted
+- [x] Release workflow `.github/workflows/release.yml`: tag-driven, OIDC trusted
       publishing (`rust-lang/crates-io-auth-action`), tag/version check, tests, then
       `cargo publish`; `workflow_dispatch` can rehearse with `--dry-run`
+- [x] Static binaries for `x86_64`/`aarch64-unknown-linux-musl` built with `cross`,
+      verified to carry no `NEEDED` entries, tarballed with README/LICENSE/man page and
+      attached to the GitHub release with `SHA256SUMS`
+- [x] First release published by hand: `fttyd 0.0.1`
 
 ## CI
 

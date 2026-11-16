@@ -15,13 +15,15 @@ The frontend is built with [bun](https://bun.sh) (or any `npm`) by `build.rs` on
 
 **From crates.io.** The published crate ships the built bundle, so `cargo install fttyd` compiles it without needing bun or a network.
 
-**Publishing** runs from [`.github/workflows/publish.yml`](.github/workflows/publish.yml) on a `v*` tag, using crates.io trusted publishing: the job asks GitHub for an OIDC token, exchanges it for a 30-minute crates.io token, and no API token is stored in the repository. The workflow builds the bundle, checks the tag against `Cargo.toml`, runs the tests, and publishes with `--allow-dirty` because `web/dist` is generated.
+**Releasing.** Pushing a `v*` tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds static `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` binaries with [`cross`](https://github.com/cross-rs/cross), attaches them (plus `SHA256SUMS`) to a GitHub release, and publishes the crate. crates.io authentication is trusted publishing: the job asks GitHub for an OIDC token, exchanges it for a 30-minute crates.io token, and no API token is stored in the repository. The workflow checks that the tag matches `Cargo.toml` before spending a version number, and `workflow_dispatch` rehearses the whole thing with `cargo publish --dry-run`.
 
-Trusted publishing only works for a crate that already exists, so the very first version needs a token, after which the crate's Settings → Trusted Publishing must name this repository, this workflow file and the `release` environment. Locally:
+Trusted publishing only works for a crate that already exists, so the first version was published with a token; the crate's Settings → Trusted Publishing must then name this repository, the workflow file `release.yml` and the `release` environment. Locally:
 
 ```sh
 (cd web && bun run build) && cargo publish --allow-dirty
 ```
+
+**Binaries** are also built by `./scripts/build-static.sh` for the host architecture, which needs only docker.
 
 **Static builds.** The only non-Rust dependency is a C compiler that targets musl, because `ring` (rustls's crypto backend) assembles C. On Debian/Ubuntu:
 
