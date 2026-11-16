@@ -319,16 +319,7 @@ async fn upload_put_inner(
 
     if start == 0 {
         if let Some(total) = total {
-            if let Some(free) = free_space(parent) {
-                if free < total {
-                    return Err(ApiError {
-                        status: StatusCode::INSUFFICIENT_STORAGE,
-                        message: format!(
-                            "not enough free space: {total} bytes needed, {free} available"
-                        ),
-                    });
-                }
-            }
+            ensure_free_space(parent, total)?;
         }
     }
 
@@ -612,6 +603,19 @@ fn safe_relative_path(name: &str) -> Result<PathBuf, ApiError> {
     Ok(out)
 }
 
+/// Fails with 507 when the target filesystem cannot hold the upload, which turns the
+/// most common real-world upload failure into a clear message instead of a truncated
+/// file.
+fn ensure_free_space(directory: &Path, needed: u64) -> Result<(), ApiError> {
+    match free_space(directory) {
+        Some(free) if free < needed => Err(ApiError {
+            status: StatusCode::INSUFFICIENT_STORAGE,
+            message: format!("not enough free space: {needed} bytes needed, {free} available"),
+        }),
+        _ => Ok(()),
+    }
+}
+
 /// Free bytes for the unprivileged caller, used for a pre-upload space check.
 fn free_space(directory: &Path) -> Option<u64> {
     use std::os::unix::ffi::OsStrExt;
@@ -689,6 +693,34 @@ mod tests {
             crate::stats::Stats::new(),
         );
         assert!(require_writable(&state).is_ok());
+    }
+
+    #[test]
+    fn uploads_are_refused_when_the_disk_cannot_hold_them() {
+        let error = ensure_free_space(Path::new("/"), u64::MAX).unwrap_err();
+        assert_eq!(error.status, StatusCode::INSUFFICIENT_STORAGE);
+        assert!(error.message.contains("not enough free space"), "{}", error.message);
+        assert!(ensure_free_space(Path::new("/"), 1024).is_ok());
+    }
+
+    #[test]
+    fn upload_names_cannot_escape_the_target() {
+        assert!(safe_relative_path("../escape").is_err());
+        assert!(safe_relative_path("a/../../b").is_err());
+        assert_eq!(safe_relative_path("dir/file.txt").unwrap(), PathBuf::from("dir/file.txt"));
+        assert_eq!(safe_relative_path("/abs/file.txt").unwrap(), PathBuf::from("abs/file.txt"));
+        assert!(safe_relative_path("./").is_err());
+    }
+
+    #[test]
+    fn content_range_forms_are_parsed() {
+        let range = parse_content_range("bytes 10-19/20").unwrap();
+        assert_eq!((range.start, range.total), (10, 20));
+        let empty = parse_content_range("bytes */0").unwrap();
+        assert_eq!((empty.start, empty.total), (0, 0));
+        assert!(parse_content_range("bytes 10-19").is_err());
+        assert!(parse_content_range("items 1-2/3").is_err());
+        assert!(parse_content_range("bytes 30-39/20").is_err());
     }
 
     #[test]

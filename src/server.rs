@@ -78,14 +78,15 @@ async fn index_handler(State(state): State<Arc<AppState>>, headers: HeaderMap) -
             }
         };
     }
-    if not_modified(&headers, &index_etag()) {
+    let body = crate::assets::index_html();
+    let etag = crate::assets::etag_for(&body);
+    if not_modified(&headers, &etag) {
         return StatusCode::NOT_MODIFIED.into_response();
     }
-    let mut response = html_response(crate::assets::index_html());
-    response.headers_mut().insert(
-        header::ETAG,
-        HeaderValue::from_str(&index_etag()).unwrap_or(HeaderValue::from_static("\"0\"")),
-    );
+    let mut response = html_response(body);
+    response
+        .headers_mut()
+        .insert(header::ETAG, HeaderValue::from_str(&etag).unwrap_or(HeaderValue::from_static("\"0\"")));
     response
 }
 
@@ -99,15 +100,6 @@ fn html_response(body: Vec<u8>) -> Response {
         body,
     )
         .into_response()
-}
-
-fn index_etag() -> String {
-    // The embedded index changes only when the binary does.
-    format!("\"{}\"", cli_version())
-}
-
-fn cli_version() -> &'static str {
-    crate::cli::VERSION
 }
 
 /// ttyd's `/token`: it echoes the configured credential, which is what its client

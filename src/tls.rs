@@ -155,7 +155,14 @@ mod tests {
         );
     }
 
-    fn certificates() -> Certificates {
+    /// Generated once per test process: the tests run in parallel and must not race on
+    /// the same files.
+    fn certificates() -> &'static Certificates {
+        static CERTS: std::sync::OnceLock<Certificates> = std::sync::OnceLock::new();
+        CERTS.get_or_init(generate_certificates)
+    }
+
+    fn generate_certificates() -> Certificates {
         let dir = std::env::temp_dir().join(format!("fttyd-tls-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
@@ -181,14 +188,14 @@ mod tests {
             "openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
              -keyout '{ca_key}' -out '{ca_pem}' -subj '/CN=fttyd-test-ca' \
              -addext 'basicConstraints=critical,CA:TRUE' \
-             -addext 'keyUsage=critical,keyCertSign,cRLSign' 2>/dev/null",
+             -addext 'keyUsage=critical,keyCertSign,cRLSign'",
             ca_key = ca_key.display(),
             ca_pem = ca_pem.display(),
         ));
         openssl(&format!(
-            "openssl req -newkey rsa:2048 -nodes -keyout '{key}' -out '{csr}' -subj '/CN=localhost' 2>/dev/null \
+            "openssl req -newkey rsa:2048 -nodes -keyout '{key}' -out '{csr}' -subj '/CN=localhost' \
              && openssl x509 -req -in '{csr}' -CA '{ca}' -CAkey '{ca_key}' -CAcreateserial -days 2 \
-                -extfile '{ext}' -out '{cert}' 2>/dev/null",
+                -extfile '{ext}' -out '{cert}'",
             key = server_key.display(),
             csr = server_csr.display(),
             ca = ca_pem.display(),
@@ -197,9 +204,9 @@ mod tests {
             cert = server_cert.display(),
         ));
         openssl(&format!(
-            "openssl req -newkey rsa:2048 -nodes -keyout '{key}' -out '{csr}' -subj '/CN=fttyd-client' 2>/dev/null \
+            "openssl req -newkey rsa:2048 -nodes -keyout '{key}' -out '{csr}' -subj '/CN=fttyd-client' \
              && openssl x509 -req -in '{csr}' -CA '{ca}' -CAkey '{ca_key}' -CAcreateserial -days 2 \
-                -extfile '{client_ext}' -out '{cert}' 2>/dev/null",
+                -extfile '{client_ext}' -out '{cert}'",
             key = client_key.display(),
             csr = client_csr.display(),
             ca = ca_pem.display(),

@@ -21,6 +21,8 @@ export interface RunningServer {
   baseURL: string;
   logs: string[];
   stop(): Promise<void>;
+  /** Resolves with the exit code once the process ends. */
+  exited(): Promise<number | null>;
 }
 
 /**
@@ -56,6 +58,15 @@ export async function startServer(args: string[]): Promise<RunningServer> {
     port,
     baseURL: `http://127.0.0.1:${port}`,
     logs,
+    exited() {
+      return new Promise<number | null>((resolve) => {
+        if (child.exitCode !== null) {
+          resolve(child.exitCode);
+          return;
+        }
+        child.once("exit", (code) => resolve(code));
+      });
+    },
     async stop() {
       if (child.exitCode !== null) return;
       await new Promise<void>((resolve) => {

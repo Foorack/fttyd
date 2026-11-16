@@ -28,12 +28,18 @@ impl Asset {
     }
 }
 
+/// Strong validator derived from the content, so a rebuilt bundle is never served from
+/// a stale cache.
+pub fn etag_for(body: &[u8]) -> String {
+    let mut hasher = DefaultHasher::new();
+    body.hash(&mut hasher);
+    format!("\"{:x}-{:x}\"", body.len(), hasher.finish())
+}
+
 pub fn get(path: &str) -> Option<Asset> {
     let file = WebAssets::get(path)?;
     let body = file.data.into_owned();
-    let mut hasher = DefaultHasher::new();
-    body.hash(&mut hasher);
-    let etag = format!("\"{:x}-{:x}\"", body.len(), hasher.finish());
+    let etag = etag_for(&body);
     Some(Asset {
         content_type: content_type(path),
         etag,

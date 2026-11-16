@@ -45,8 +45,9 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
   - [x] `-S`/`-C`/`-K` via rustls (no TLS 1.0/1.1 support at all)
   - [x] `-A` client certificate verification (unit: `tls::tests`, incl. rejection without a cert)
   - [x] wss works through the same listener
-- [ ] `-B` browser launch covered by a test
-- [ ] `--help` diffed against ttyd's text
+- [ ] `-B` browser launch covered by a test (would open a browser on the test machine)
+- [x] `--help` diffed against ttyd's text (only the name, version, URL and `--file-root` differ)
+- [x] `-O`/`-m`/`-o`/`-q`/`-a`/`-I` covered end to end (E2E)
 
 ## 3. Filesystem read-only
 
@@ -91,12 +92,14 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
 - [x] Pinning on manual navigation, "follow" toggle to resync (E2E)
 - [x] "Open terminal here" types `cd` into the attached shell (E2E)
 - [x] Mobile drawer
-- [ ] Accessibility pass on gauges and tree
+- [x] Numeric values beside every gauge (no colour-only encoding), visible focus outlines
+- [ ] Full accessibility audit
 
 ## Testing and delivery
 
-- [x] Unit tests across CLI, protocol, PTY, auth, routing, state
-- [ ] Playwright suite extended to files, stats, upload, CSRF
-- [ ] Docker tests (`debian:stable`, non-root): `-u`/`-g`, `-i`, permission-denied paths, `/proc`
-- [ ] README and man page
-- [ ] Single static binary check (`ldd`)
+- [x] Unit tests across CLI, protocol, PTY, auth, routing, state, fs, archives, uploads, stats, TLS
+- [x] Playwright suite covering terminal, conformance, files, stats, upload, CSRF, follow-cwd, options
+- [x] Docker tests (`debian:bookworm-slim`): `-u`/`-g`, `-i`/`-U`, permission-denied paths, `/proc`, `/dev`
+- [x] README and man page
+- [x] Single binary: assets embedded, `ldd` shows only libc/libm/libgcc
+- [ ] Fully static musl build (needs a musl cross toolchain; the glibc build is one file)

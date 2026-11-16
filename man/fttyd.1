@@ -1,0 +1,181 @@
+.nh
+.TH fttyd 1 "" fttyd "User Manual"
+
+.SH NAME
+.PP
+fttyd \- Share your terminal over the web, with a file manager and stats sidebar
+
+
+.SH SYNOPSIS
+.PP
+\fBfttyd\fP [options] <command> [<arguments...>]
+
+
+.SH DESCRIPTION
+.PP
+fttyd is a drop-in replacement for ttyd(1): it accepts the same options, serves the same
+endpoints and speaks the same terminal protocol, and adds a sidebar with live system
+statistics and a file tree that can download, upload and edit files.
+
+.PP
+The terminal is one PTY per websocket connection. Each connection starts the configured
+command, receives the PTY output as it is produced, and is closed when the child exits.
+
+.PP
+Read-only is the default. Without \fB\-\-writable\fP neither the terminal nor the file
+API accepts input.
+
+
+.SH OPTIONS
+.PP
+-p, --port
+      Port to listen (default: 7681, use \fB0\fP for a random port)
+
+.PP
+-i, --interface
+      Network interface or address to bind (eg: eth0, 127.0.0.1), or a UNIX domain
+      socket path when it ends in .sock or .socket (eg: /var/run/fttyd.sock)
+
+.PP
+-U, --socket-owner
+      Owner of the UNIX domain socket file (eg: user:group)
+
+.PP
+-c, --credential USER:PASSWORD
+      Credential for HTTP Basic authentication
+
+.PP
+-H, --auth-header
+      Header an authenticating reverse proxy sets; when present the request is
+      authenticated and the header value is logged as the actor of file operations
+
+.PP
+-u, --uid
+      User id to run with, applied after the listener is bound
+
+.PP
+-g, --gid
+      Group id to run with, applied after the listener is bound
+
+.PP
+-s, --signal
+      Signal sent to the command on exit (default: 1, SIGHUP)
+
+.PP
+-w, --cwd
+      Working directory for the child program
+
+.PP
+-a, --url-arg
+      Allow the client to append arguments in the URL (eg: ?arg=foo&arg=bar)
+
+.PP
+-W, --writable
+      Allow clients to write to the terminal and to the file API
+
+.PP
+-t, --client-option KEY=VALUE
+      Option passed to the browser client; repeat for more options. The value is parsed
+      as JSON when possible, otherwise sent as a string
+
+.PP
+-T, --terminal-type
+      Terminal type to report (default: xterm-256color)
+
+.PP
+-O, --check-origin
+      Refuse websocket connections from a different origin
+
+.PP
+-m, --max-clients
+      Maximum number of clients (default: 0, no limit)
+
+.PP
+-o, --once
+      Accept only one client and exit when it disconnects
+
+.PP
+-q, --exit-no-conn
+      Exit when the last client disconnects
+
+.PP
+-B, --browser
+      Open the terminal in the default browser
+
+.PP
+-I, --index
+      Custom index.html to serve instead of the built-in interface
+
+.PP
+-b, --base-path
+      Base path expected from a reverse proxy (eg: /mounted/here)
+
+.PP
+-P, --ping-interval
+      Websocket ping interval in seconds (default: 5)
+
+.PP
+-f, --srv-buf-size
+      Maximum chunk size read from the PTY (default: 4096)
+
+.PP
+-6, --ipv6
+      Listen on IPv6
+
+.PP
+-S, --ssl
+      Enable TLS; requires --ssl-cert and --ssl-key
+
+.PP
+-C, --ssl-cert
+      TLS certificate chain (PEM)
+
+.PP
+-K, --ssl-key
+      TLS private key (PEM)
+
+.PP
+-A, --ssl-ca
+      CA bundle used to require and verify a client certificate
+
+.PP
+-d, --debug
+      Log level (default: 7)
+
+.PP
+--file-root
+      Restrict the file API to this directory; repeatable. Without it the file API can
+      reach everything the server process can, which is the same reach as the terminal
+
+.PP
+-v, --version
+      Print the version and exit
+
+.PP
+-h, --help
+      Print the usage text and exit
+
+
+.SH ENDPOINTS
+.PP
+\fB/ws\fP is the terminal websocket and \fB/token\fP returns the credential the client
+uses for it. The sidebar uses \fB/api/info\fP, \fB/api/fs\fP, \fB/api/download\fP,
+\fB/api/archive\fP, \fB/api/stats\fP and \fB/api/upload\fP. All paths honour \fB-b\fP.
+
+.PP
+Uploads and mutations require \fB-W\fP and the CSRF header named by \fB/api/info\fP.
+
+
+.SH FILES
+.PP
+No files are required at runtime: the interface is embedded in the binary.
+
+
+.SH EXIT STATUS
+.PP
+0 on a clean shutdown, 1 for configuration errors, 255 for invalid options.
+
+
+.SH SEE ALSO
+.PP
+ttyd(1)
