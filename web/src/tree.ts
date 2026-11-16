@@ -12,6 +12,16 @@ import {
   type Entry,
 } from "./api";
 import { askConfirm, askText } from "./modal";
+// Material Icon Theme (MIT): https://github.com/material-extensions/vscode-material-icon-theme
+import lockedFolderIcon from "./icons/folder-admin.svg?url";
+import folderIcon from "./icons/folder-base.svg?url";
+import hiddenIcon from "./icons/folder-controller.svg?url";
+import newFolderIcon from "./icons/folder-include.svg?url";
+import parentIcon from "./icons/folder-interface.svg?url";
+import followIcon from "./icons/folder-routes.svg?url";
+import refreshIcon from "./icons/folder-update.svg?url";
+import uploadIcon from "./icons/folder-upload.svg?url";
+import fileIcon from "./icons/document.svg?url";
 
 const ROW_HEIGHT = 22;
 /** Rows rendered beyond the viewport on each side. */
@@ -183,21 +193,29 @@ export class FileTree {
   }
 
   private buildToolbar(): void {
-    const button = (label: string, title: string, action: () => void): HTMLButtonElement => {
+    const button = (icon: string, title: string, action: () => void): HTMLButtonElement => {
       const element = document.createElement("button");
       element.type = "button";
       element.className = "btn icon";
-      element.textContent = label;
       element.title = title;
       element.dataset.tooltip = title;
+      // The glyph used to supply the accessible name, so it has to be spelled out now.
+      element.setAttribute("aria-label", title);
+      const image = document.createElement("img");
+      image.className = "btn-icon";
+      image.src = icon;
+      image.alt = "";
+      image.width = 16;
+      image.height = 16;
+      element.appendChild(image);
       element.addEventListener("click", action);
       return element;
     };
 
-    const up = button("\u2191", "Parent directory", () => void this.goUp());
+    const up = button(parentIcon, "Parent directory", () => void this.goUp());
     up.dataset.testid = "up";
-    const refresh = button("\u21bb", "Refresh", () => void this.refresh(this.root.path));
-    const hidden = button("\u25cc", "Toggle hidden files", () => {
+    const refresh = button(refreshIcon, "Refresh", () => void this.refresh(this.root.path));
+    const hidden = button(hiddenIcon, "Toggle hidden files", () => {
       this.showHidden = !this.showHidden;
       hidden.classList.toggle("active", this.showHidden);
       this.render();
@@ -207,14 +225,14 @@ export class FileTree {
     this.toolbar.append(up, refresh, hidden);
 
     if (this.options.writable) {
-      const mkdir = button("\uff0b", "New folder", () => void this.createFolder());
+      const mkdir = button(newFolderIcon, "New folder", () => void this.createFolder());
       mkdir.dataset.testid = "new-folder";
-      const upload = button("\u21e7", "Upload files", () => this.pickFiles());
+      const upload = button(uploadIcon, "Upload files", () => this.pickFiles());
       upload.dataset.testid = "upload";
       this.toolbar.append(mkdir, upload);
     }
 
-    const follow = button("\u25ce", "Follow the shell's working directory", () => {
+    const follow = button(followIcon, "Follow the shell's working directory", () => {
       if (this.followEnabled) {
         this.disableFollowing();
       } else {
@@ -565,7 +583,7 @@ export class FileTree {
     name.className = "row-name";
     name.textContent = this.root.path;
 
-    row.append(caret, name);
+    row.append(caret, this.rowIcon(this.root.error ? lockedFolderIcon : folderIcon), name);
     return row;
   }
 
@@ -576,7 +594,9 @@ export class FileTree {
     row.dataset.kind = node.kind;
     row.style.paddingLeft = `${4 + node.depth * 12}px`;
     if (this.selected === node.path) row.classList.add("selected");
-    if (node.entry?.error) row.classList.add("locked");
+    // A directory we could not open is as unavailable as one whose metadata failed.
+    const locked = Boolean(node.entry?.error) || node.error !== null;
+    if (locked) row.classList.add("locked");
 
     const caret = document.createElement("span");
     caret.className = "row-caret";
@@ -600,9 +620,21 @@ export class FileTree {
     if (node.entry?.mtime) parts.push(formatTime(node.entry.mtime));
     meta.textContent = parts.filter(Boolean).join("  ");
 
-    row.append(caret, name, meta);
+    const icon = node.kind === "dir" ? (locked ? lockedFolderIcon : folderIcon) : fileIcon;
+    row.append(caret, this.rowIcon(icon), name, meta);
     if (node.error) row.title = node.error;
     return row;
+  }
+
+  private rowIcon(src: string): HTMLImageElement {
+    const image = document.createElement("img");
+    image.className = "row-icon";
+    image.src = src;
+    // The row's name already says what this is; the icon is decoration.
+    image.alt = "";
+    image.width = 14;
+    image.height = 14;
+    return image;
   }
 
   /** Coalesces scroll-driven repaints into one per frame. */

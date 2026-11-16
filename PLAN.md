@@ -16,6 +16,7 @@ A Rust reimplementation of [ttyd](https://github.com/tsl0922/ttyd) (reference cl
 - Sidebar right, top-to-bottom: CPU gauge, RAM gauge, `/` disk gauge, then the file tree filling remaining height.
 - Terminal stays at column 0 when the sidebar collapses — toggling never shifts the terminal's left edge, so shell/TUI output doesn't jump sideways.
 - Splitter: draggable, persisted to `localStorage`; sidebar collapses below ~900px into a drawer with the terminal full-bleed.
+- Icons: toolbar actions and tree rows use Material Icon Theme SVGs (MIT) rather than Nerd Font glyphs, so nothing depends on the viewer's font; a padlocked folder flags a directory that cannot be opened. Every icon button keeps an `aria-label` — the picture replaces the glyph, not the accessible name.
 - Gauges: monospace cells, Unicode blocks (`▁▂▃▄▅▆▇█`) or CSS bar; always print the numeric percent next to it (don't encode state by colour alone); no Nerd Font glyphs, no box-drawing art.
 
 ### Terminal resize
@@ -114,7 +115,7 @@ What is verified where:
 | Area | Where |
 |---|---|
 | CLI surface, protocol framing, PTY, path confinement, archives, uploads, stats, TLS | `cargo test` (96 tests) |
-| Terminal behaviour, ttyd-client conformance, sidebar, uploads/downloads, mutations, CSRF, read-only, base path, auth, `-O`/`-m`/`-o`/`-q`/`-a`/`-I`, follow-cwd | `e2e` Playwright suite (37 tests) |
+| Terminal behaviour, ttyd-client conformance, sidebar, uploads/downloads, mutations, CSRF, read-only, base path, auth, `-O`/`-m`/`-o`/`-q`/`-a`/`-I`, follow-cwd | `e2e` Playwright suite (46 tests) |
 | `-u`/`-g` drop, `-i`/`-U` sockets, permission errors, `/proc` and `/dev` listings, archive of special files | `scripts/docker-tests.sh` |
 | Static musl binary (static-pie, HTTP + websocket/PTY + TLS verified inside alpine) | `scripts/build-static.sh` |
 

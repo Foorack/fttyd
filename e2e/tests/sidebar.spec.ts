@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -540,6 +541,55 @@ test("a rebase under a scrolled list still renders rows", async ({ page }) => {
     expect(state.rows).toBeGreaterThan(1);
   } finally {
     await server.stop();
+    fixture.cleanup();
+  }
+});
+
+test("the toolbar and rows carry the theme's icons", async ({ page, request }) => {
+  const fixture = makeFixture("icons");
+  mkdirSync(path.join(fixture.root, "locked"));
+  chmodSync(path.join(fixture.root, "locked"), 0o000);
+  const server = await startServer(["-W", "-w", fixture.root, "bash", "--norc", "--noprofile"]);
+  try {
+    await page.goto(server.baseURL);
+    const tree = page.getByTestId("file-tree");
+
+    // Every action keeps an accessible name even though it now shows a picture.
+    for (const name of [
+      "Parent directory",
+      "Refresh",
+      "Toggle hidden files",
+      "New folder",
+      "Upload files",
+      "Follow the shell's working directory",
+    ]) {
+      const button = page.getByRole("button", { name });
+      await expect(button).toBeVisible();
+      const icon = button.locator("img");
+      await expect(icon).toHaveAttribute("alt", "");
+      // A 200 with an empty body would still be an <img> that renders nothing.
+      await expect.poll(async () => icon.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+    }
+
+    // Rows show a folder or a document; the padlock marks the one we cannot open.
+    const lockedRow = tree.locator(".file-row", { hasText: "locked/" });
+    await expect(lockedRow.locator("img")).toHaveAttribute("src", /folder-base/);
+    await lockedRow.dblclick();
+    await expect(lockedRow.locator("img")).toHaveAttribute("src", /folder-admin/);
+
+    await expect(tree.locator(".file-row", { hasText: "a.txt" }).locator("img")).toHaveAttribute(
+      "src",
+      /document/,
+    );
+
+    const favicon = await request.get(`${server.baseURL}/favicon.svg`);
+    expect(favicon.status()).toBe(200);
+    expect(favicon.headers()["content-type"]).toBe("image/svg+xml");
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "./favicon.svg");
+  } finally {
+    await server.stop();
+    // The fixture is deleted recursively, which cannot descend into a 000 directory.
+    chmodSync(path.join(fixture.root, "locked"), 0o755);
     fixture.cleanup();
   }
 });

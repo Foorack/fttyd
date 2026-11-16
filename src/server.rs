@@ -25,6 +25,10 @@ pub fn router(state: Arc<AppState>) -> Router {
             get(asset_handler),
         )
         .route(
+            &format!("{}favicon.svg", cfg.index_path()),
+            get(favicon_handler),
+        )
+        .route(
             &format!("{}api/info", cfg.index_path()),
             get(crate::api::info),
         )
@@ -195,6 +199,31 @@ async fn asset_handler(
     response
 }
 
+/// The bundler copies `public/` to the root of the bundle, outside `assets/`, so the
+/// favicon needs its own route.
+async fn favicon_handler(headers: HeaderMap) -> Response {
+    let Some(asset) = crate::assets::get("favicon.svg") else {
+        return (StatusCode::NOT_FOUND, "favicon not found").into_response();
+    };
+    if not_modified(&headers, &asset.etag) {
+        return StatusCode::NOT_MODIFIED.into_response();
+    }
+    let mut response = Response::new(Body::from(asset.body));
+    let headers_out = response.headers_mut();
+    headers_out.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static(asset.content_type),
+    );
+    headers_out.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=86400"),
+    );
+    if let Ok(value) = HeaderValue::from_str(&asset.etag) {
+        headers_out.insert(header::ETAG, value);
+    }
+    response
+}
+
 async fn stats_handler(State(state): State<Arc<AppState>>) -> Response {
     crate::stats::stream(state.stats.subscribe()).into_response()
 }
@@ -259,6 +288,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn serves_the_favicon() {
+        let app = router(test_state());
+        let request = Request::builder()
+            .uri("/favicon.svg")
+            .body(Body::empty())
+            .unwrap();
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "image/svg+xml",
+            "browsers only use the icon when it is served as an image"
+        );
+        let etag = response.headers()[header::ETAG].clone();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert!(
+            body.starts_with(b"<svg"),
+            "the embedded icon must be the file the bundler copied"
+        );
+
+        // Revalidation, so a cached tab does not re-download it.
+        let request = Request::builder()
+            .uri("/favicon.svg")
+            .header(header::IF_NONE_MATCH, etag)
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            app.oneshot(request).await.unwrap().status(),
+            StatusCode::NOT_MODIFIED
+        );
+    }
+
+    #[tokio::test]
     async fn token_echoes_the_credential() {
         let mut cfg = crate::cli::Config {
             command: vec!["bash".into()],
@@ -306,6 +370,10 @@ mod tests {
         assert_eq!(status(&app, "/mounted/here").await, StatusCode::FOUND);
         assert_eq!(status(&app, "/mounted/here/").await, StatusCode::OK);
         assert_eq!(status(&app, "/mounted/here/token").await, StatusCode::OK);
+        assert_eq!(
+            status(&app, "/mounted/here/favicon.svg").await,
+            StatusCode::OK
+        );
         assert_eq!(status(&app, "/").await, StatusCode::NOT_FOUND);
     }
 

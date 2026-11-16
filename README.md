@@ -101,6 +101,7 @@ Read-only is the default, exactly like ttyd: without `-W`, clients cannot type i
 - **Downloads** — single files with `Range` support (a symlink is followed to its target), folders streamed as `zip` or `tar.gz` (ZIP64, mtime and permissions preserved, nothing written to disk). A folder download of a tree containing unreadable files or special files still succeeds; what was skipped is listed in `fttyd-archive-report.txt` inside the archive. Archives never follow symlinks, so a link is stored as a link.
 - **Uploads** — chunked and resumable, with a free-space check before the first byte and an atomic rename when the last chunk lands. Drag files (or folders) from your desktop onto the tree.
 - **Follow the shell** — the tree tracks the shell's working directory through `/proc`; navigating by hand pins it, and the ◎ button jumps back.
+- **Icons** — the toolbar and the tree use the [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) set (MIT): a padlock folder marks a directory that cannot be opened, and the tab icon is a recoloured PowerShell badge. See [web/src/icons/README.md](web/src/icons/README.md).
 - **Walking up** — the tree is not anchored to the directory `fttyd` was started in: each ↑ asks the server for the parent and rebases the view one level up, keeping expansion, all the way to `/`. A confined `--file-root` stops it at the boundary with an explanation instead of silently going nowhere.
 - **Open terminal here** — types a quoted `cd` into the attached terminal.
 
@@ -152,4 +153,4 @@ Behaviour matches ttyd except where ttyd silently does the wrong thing. Each of 
 
 ## License
 
-MIT. ttyd is MIT as well; the wire protocol and option surface are reimplemented from its behaviour, and its shipped client is used only as a test fixture.
+MIT. ttyd is MIT as well; the wire protocol and option surface are reimplemented from its behaviour, and its shipped client is used only as a test fixture. The sidebar icons come from Material Icon Theme (MIT), whose licence sits in [web/src/icons/](web/src/icons/).

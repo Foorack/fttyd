@@ -65,6 +65,9 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
 - [x] File tree UI
   - [x] lazy loading, sort, hidden toggle, sizes/mtime, symlink marking
   - [x] keyboard navigation, locked entries, row windowing for large directories
+  - [x] toolbar and row icons from Material Icon Theme, a padlocked folder for a
+        directory that cannot be opened (`img` with `alt=""` plus `aria-label` on the
+        buttons, so the actions keep their names)
   - [x] windowing repaints on scroll and on `scrollIntoView`, so rows below the fold
         exist before you can click them (E2E: 300-entry directory)
   - [x] every row a rebase reveals is registered for clicks, menus and toolbar actions,
@@ -81,6 +84,8 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
 - [x] CPU / RAM / root disk gauges with numeric percentages
 - [x] `1fr / 4px / sidebar` grid with the terminal at ~3/4, draggable splitter persisted
 - [x] Mobile drawer below 900px (E2E)
+- [x] Favicon: Material's PowerShell badges recoloured to a blue/cyan gradient, served
+      from `/favicon.svg` with an ETag (unit: `server::tests::serves_the_favicon`)
 
 ## 5. Mutations (`-W` only)
 
