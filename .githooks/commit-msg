@@ -1,0 +1,6 @@
+#!/bin/sh
+# Refuses commits that credit an AI model, before they reach the history.
+#
+# Enable once per clone with:
+#   git config core.hooksPath .githooks
+exec "$(git rev-parse --show-toplevel)/scripts/check-authors.sh" --message-file "$1"

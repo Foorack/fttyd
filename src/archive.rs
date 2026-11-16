@@ -53,7 +53,11 @@ impl ArchiveFormat {
 }
 
 /// Builds a streaming `Response` for `root`.
-pub fn response(root: PathBuf, roots: Vec<PathBuf>, format: ArchiveFormat) -> Result<Response, ApiError> {
+pub fn response(
+    root: PathBuf,
+    roots: Vec<PathBuf>,
+    format: ArchiveFormat,
+) -> Result<Response, ApiError> {
     enforce_roots(&roots, &root)?;
     let metadata = std::fs::symlink_metadata(&root)?;
     if !metadata.is_dir() {
@@ -70,7 +74,10 @@ pub fn response(root: PathBuf, roots: Vec<PathBuf>, format: ArchiveFormat) -> Re
     let (tx, mut rx) = mpsc::channel::<Result<Bytes, io::Error>>(CHUNK_QUEUE);
     let spawn_root = root.clone();
     tokio::task::spawn_blocking(move || {
-        let writer = ChannelWriter { sender: tx.clone(), closed: false };
+        let writer = ChannelWriter {
+            sender: tx.clone(),
+            closed: false,
+        };
         let result = match format {
             ArchiveFormat::Zip => write_zip(writer, &spawn_root, &roots),
             ArchiveFormat::TarGz => write_tar_gz(writer, &spawn_root, &roots),
@@ -89,7 +96,10 @@ pub fn response(root: PathBuf, roots: Vec<PathBuf>, format: ArchiveFormat) -> Re
     Ok((
         StatusCode::OK,
         [
-            (header::CONTENT_TYPE, HeaderValue::from_static(format.content_type())),
+            (
+                header::CONTENT_TYPE,
+                HeaderValue::from_static(format.content_type()),
+            ),
             (header::CONTENT_DISPOSITION, disposition),
             (header::CACHE_CONTROL, HeaderValue::from_static("no-store")),
         ],
@@ -124,8 +134,16 @@ fn content_disposition(file_name: &str) -> HeaderValue {
         .add(b'{')
         .add(b'}');
 
-    let ascii_fallback: String =
-        file_name.chars().map(|c| if c.is_ascii() && !c.is_ascii_control() { c } else { '_' }).collect();
+    let ascii_fallback: String = file_name
+        .chars()
+        .map(|c| {
+            if c.is_ascii() && !c.is_ascii_control() {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
     let encoded = utf8_percent_encode(file_name, ENCODE);
     let value = format!("attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}");
     HeaderValue::from_str(&value).unwrap_or_else(|_| HeaderValue::from_static("attachment"))
@@ -140,13 +158,22 @@ struct ChannelWriter {
 impl Write for ChannelWriter {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         if self.closed {
-            return Err(io::Error::new(io::ErrorKind::BrokenPipe, "client disconnected"));
+            return Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "client disconnected",
+            ));
         }
-        match self.sender.blocking_send(Ok(Bytes::copy_from_slice(buffer))) {
+        match self
+            .sender
+            .blocking_send(Ok(Bytes::copy_from_slice(buffer)))
+        {
             Ok(()) => Ok(buffer.len()),
             Err(_) => {
                 self.closed = true;
-                Err(io::Error::new(io::ErrorKind::BrokenPipe, "client disconnected"))
+                Err(io::Error::new(
+                    io::ErrorKind::BrokenPipe,
+                    "client disconnected",
+                ))
             }
         }
     }
@@ -253,7 +280,9 @@ struct ZipSink {
 
 impl ZipSink {
     fn new(writer: ChannelWriter) -> io::Result<Self> {
-        Ok(Self { writer: Some(zip::ZipWriter::new_stream(writer)) })
+        Ok(Self {
+            writer: Some(zip::ZipWriter::new_stream(writer)),
+        })
     }
 
     fn finish(mut self) -> io::Result<()> {
@@ -280,13 +309,17 @@ impl ZipSink {
 impl Sink for ZipSink {
     fn directory(&mut self, name: &str, _path: &Path, meta: &std::fs::Metadata) -> io::Result<()> {
         let writer = self.writer.as_mut().expect("zip writer");
-        writer.add_directory(format!("{name}/"), Self::options(meta)).map_err(zip_error)
+        writer
+            .add_directory(format!("{name}/"), Self::options(meta))
+            .map_err(zip_error)
     }
 
     fn file(&mut self, name: &str, path: &Path, meta: &std::fs::Metadata) -> io::Result<()> {
         let mut source = std::fs::File::open(path)?;
         let writer = self.writer.as_mut().expect("zip writer");
-        writer.start_file(name, Self::options(meta)).map_err(zip_error)?;
+        writer
+            .start_file(name, Self::options(meta))
+            .map_err(zip_error)?;
         io::copy(&mut source, writer).map(|_| ())
     }
 
@@ -322,7 +355,9 @@ struct TarSink {
 impl TarSink {
     fn new(writer: ChannelWriter) -> Self {
         let encoder = flate2::write::GzEncoder::new(writer, flate2::Compression::default());
-        Self { builder: Some(tar::Builder::new(encoder)) }
+        Self {
+            builder: Some(tar::Builder::new(encoder)),
+        }
     }
 
     fn finish(mut self) -> io::Result<()> {
@@ -333,11 +368,17 @@ impl TarSink {
 
 impl Sink for TarSink {
     fn directory(&mut self, name: &str, path: &Path, _meta: &std::fs::Metadata) -> io::Result<()> {
-        self.builder.as_mut().expect("tar builder").append_dir(name, path)
+        self.builder
+            .as_mut()
+            .expect("tar builder")
+            .append_dir(name, path)
     }
 
     fn file(&mut self, name: &str, path: &Path, _meta: &std::fs::Metadata) -> io::Result<()> {
-        self.builder.as_mut().expect("tar builder").append_path_with_name(path, name)
+        self.builder
+            .as_mut()
+            .expect("tar builder")
+            .append_path_with_name(path, name)
     }
 
     fn symlink(
@@ -351,7 +392,10 @@ impl Sink for TarSink {
         header.set_metadata_in_mode(meta, tar::HeaderMode::Complete);
         header.set_entry_type(tar::EntryType::Symlink);
         header.set_size(0);
-        self.builder.as_mut().expect("tar builder").append_link(&mut header, name, target)?;
+        self.builder
+            .as_mut()
+            .expect("tar builder")
+            .append_link(&mut header, name, target)?;
         let _ = path;
         Ok(())
     }
@@ -444,14 +488,23 @@ mod tests {
     }
 
     fn collect(format: ArchiveFormat, root: &Path, roots: &[PathBuf]) -> Vec<u8> {
-        let dir = std::env::temp_dir()
-            .join(format!("fttyd-archive-out-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let dir = std::env::temp_dir().join(format!(
+            "fttyd-archive-out-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         std::fs::create_dir_all(&dir).unwrap();
         let (tx, mut rx) = mpsc::channel::<Result<Bytes, io::Error>>(4);
         let root = root.to_path_buf();
         let roots = roots.to_vec();
         let handle = std::thread::spawn(move || {
-            let writer = ChannelWriter { sender: tx, closed: false };
+            let writer = ChannelWriter {
+                sender: tx,
+                closed: false,
+            };
             match format {
                 ArchiveFormat::Zip => write_zip(writer, &root, &roots),
                 ArchiveFormat::TarGz => write_tar_gz(writer, &root, &roots),
@@ -472,12 +525,20 @@ mod tests {
         let bytes = collect(ArchiveFormat::Zip, &root, &[]);
 
         let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
-        let names: Vec<String> = (0..archive.len()).map(|i| archive.by_index(i).unwrap().name().unwrap().to_string()).collect();
+        let names: Vec<String> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().unwrap().to_string())
+            .collect();
         let dir_name = root.file_name().unwrap().to_string_lossy().into_owned();
         assert!(names.contains(&format!("{dir_name}/a.txt")), "{names:?}");
-        assert!(names.contains(&format!("{dir_name}/sub/b.txt")), "{names:?}");
+        assert!(
+            names.contains(&format!("{dir_name}/sub/b.txt")),
+            "{names:?}"
+        );
         assert!(names.contains(&format!("{dir_name}/link.txt")), "{names:?}");
-        assert!(names.iter().any(|name| name.ends_with('/')), "directory entry missing: {names:?}");
+        assert!(
+            names.iter().any(|name| name.ends_with('/')),
+            "directory entry missing: {names:?}"
+        );
 
         let mut inner = String::new();
         archive
@@ -537,8 +598,13 @@ mod tests {
 
         let bytes = collect(ArchiveFormat::Zip, &root, &[]);
         let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
-        let names: Vec<String> = (0..archive.len()).map(|i| archive.by_index(i).unwrap().name().unwrap().to_string()).collect();
-        assert!(!names.iter().any(|name| name.ends_with("secret.txt")), "{names:?}");
+        let names: Vec<String> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().unwrap().to_string())
+            .collect();
+        assert!(
+            !names.iter().any(|name| name.ends_with("secret.txt")),
+            "{names:?}"
+        );
 
         std::fs::remove_dir_all(&root).unwrap();
         std::fs::remove_dir_all(&outside).unwrap();
@@ -559,12 +625,22 @@ mod tests {
         for index in 0..archive.len() {
             names.push(archive.by_index(index).unwrap().name().unwrap().to_string());
         }
-        assert!(!names.iter().any(|name| name.ends_with("/pipe")), "{names:?}");
+        assert!(
+            !names.iter().any(|name| name.ends_with("/pipe")),
+            "{names:?}"
+        );
         let dir_name = root.file_name().unwrap().to_string_lossy().into_owned();
-        assert!(names.contains(&format!("{dir_name}/{SKIP_REPORT}")), "{names:?}");
+        assert!(
+            names.contains(&format!("{dir_name}/{SKIP_REPORT}")),
+            "{names:?}"
+        );
 
         let mut report = String::new();
-        archive.by_name(&format!("{dir_name}/{SKIP_REPORT}")).unwrap().read_to_string(&mut report).unwrap();
+        archive
+            .by_name(&format!("{dir_name}/{SKIP_REPORT}"))
+            .unwrap()
+            .read_to_string(&mut report)
+            .unwrap();
         assert!(report.contains("pipe"), "{report}");
         std::fs::remove_dir_all(&root).unwrap();
     }
@@ -572,8 +648,17 @@ mod tests {
     #[test]
     fn archives_respect_file_roots() {
         let root = fixture("roots");
-        let result = std::panic::catch_unwind(|| collect(ArchiveFormat::Zip, &root, &[PathBuf::from("/nonexistent-root")]));
-        assert!(result.is_ok(), "archive walk should not panic when roots exclude everything");
+        let result = std::panic::catch_unwind(|| {
+            collect(
+                ArchiveFormat::Zip,
+                &root,
+                &[PathBuf::from("/nonexistent-root")],
+            )
+        });
+        assert!(
+            result.is_ok(),
+            "archive walk should not panic when roots exclude everything"
+        );
         std::fs::remove_dir_all(&root).unwrap();
     }
 

@@ -66,7 +66,10 @@ fn needs_build(dist_index: &Path) -> bool {
 }
 
 fn source_mtime(path: &str) -> Option<SystemTime> {
-    Path::new(path).metadata().ok().and_then(|meta| meta.modified().ok())
+    Path::new(path)
+        .metadata()
+        .ok()
+        .and_then(|meta| meta.modified().ok())
 }
 
 fn newest_mtime(dir: &Path) -> Option<SystemTime> {

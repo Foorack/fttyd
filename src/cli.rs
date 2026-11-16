@@ -153,11 +153,17 @@ pub struct CliError {
 
 impl CliError {
     fn usage(message: impl Into<String>) -> Self {
-        Self { message: message.into(), exit_code: 255 }
+        Self {
+            message: message.into(),
+            exit_code: 255,
+        }
     }
 
     fn value(message: impl Into<String>) -> Self {
-        Self { message: message.into(), exit_code: 1 }
+        Self {
+            message: message.into(),
+            exit_code: 1,
+        }
     }
 }
 
@@ -171,38 +177,131 @@ struct LongOpt {
 
 /// Every long option ttyd accepts, in its own order.
 const LONG_OPTS: &[LongOpt] = &[
-    LongOpt { name: "port", short: Some('p') },
-    LongOpt { name: "interface", short: Some('i') },
-    LongOpt { name: "socket-owner", short: Some('U') },
-    LongOpt { name: "credential", short: Some('c') },
-    LongOpt { name: "auth-header", short: Some('H') },
-    LongOpt { name: "uid", short: Some('u') },
-    LongOpt { name: "gid", short: Some('g') },
-    LongOpt { name: "signal", short: Some('s') },
-    LongOpt { name: "cwd", short: Some('w') },
-    LongOpt { name: "index", short: Some('I') },
-    LongOpt { name: "base-path", short: Some('b') },
-    LongOpt { name: "ping-interval", short: Some('P') },
-    LongOpt { name: "srv-buf-size", short: Some('f') },
-    LongOpt { name: "ipv6", short: Some('6') },
-    LongOpt { name: "ssl", short: Some('S') },
-    LongOpt { name: "ssl-cert", short: Some('C') },
-    LongOpt { name: "ssl-key", short: Some('K') },
-    LongOpt { name: "ssl-ca", short: Some('A') },
-    LongOpt { name: "url-arg", short: Some('a') },
-    LongOpt { name: "writable", short: Some('W') },
-    LongOpt { name: "terminal-type", short: Some('T') },
-    LongOpt { name: "client-option", short: Some('t') },
-    LongOpt { name: "check-origin", short: Some('O') },
-    LongOpt { name: "max-clients", short: Some('m') },
-    LongOpt { name: "once", short: Some('o') },
-    LongOpt { name: "exit-no-conn", short: Some('q') },
-    LongOpt { name: "browser", short: Some('B') },
-    LongOpt { name: "debug", short: Some('d') },
-    LongOpt { name: "version", short: Some('v') },
-    LongOpt { name: "help", short: Some('h') },
+    LongOpt {
+        name: "port",
+        short: Some('p'),
+    },
+    LongOpt {
+        name: "interface",
+        short: Some('i'),
+    },
+    LongOpt {
+        name: "socket-owner",
+        short: Some('U'),
+    },
+    LongOpt {
+        name: "credential",
+        short: Some('c'),
+    },
+    LongOpt {
+        name: "auth-header",
+        short: Some('H'),
+    },
+    LongOpt {
+        name: "uid",
+        short: Some('u'),
+    },
+    LongOpt {
+        name: "gid",
+        short: Some('g'),
+    },
+    LongOpt {
+        name: "signal",
+        short: Some('s'),
+    },
+    LongOpt {
+        name: "cwd",
+        short: Some('w'),
+    },
+    LongOpt {
+        name: "index",
+        short: Some('I'),
+    },
+    LongOpt {
+        name: "base-path",
+        short: Some('b'),
+    },
+    LongOpt {
+        name: "ping-interval",
+        short: Some('P'),
+    },
+    LongOpt {
+        name: "srv-buf-size",
+        short: Some('f'),
+    },
+    LongOpt {
+        name: "ipv6",
+        short: Some('6'),
+    },
+    LongOpt {
+        name: "ssl",
+        short: Some('S'),
+    },
+    LongOpt {
+        name: "ssl-cert",
+        short: Some('C'),
+    },
+    LongOpt {
+        name: "ssl-key",
+        short: Some('K'),
+    },
+    LongOpt {
+        name: "ssl-ca",
+        short: Some('A'),
+    },
+    LongOpt {
+        name: "url-arg",
+        short: Some('a'),
+    },
+    LongOpt {
+        name: "writable",
+        short: Some('W'),
+    },
+    LongOpt {
+        name: "terminal-type",
+        short: Some('T'),
+    },
+    LongOpt {
+        name: "client-option",
+        short: Some('t'),
+    },
+    LongOpt {
+        name: "check-origin",
+        short: Some('O'),
+    },
+    LongOpt {
+        name: "max-clients",
+        short: Some('m'),
+    },
+    LongOpt {
+        name: "once",
+        short: Some('o'),
+    },
+    LongOpt {
+        name: "exit-no-conn",
+        short: Some('q'),
+    },
+    LongOpt {
+        name: "browser",
+        short: Some('B'),
+    },
+    LongOpt {
+        name: "debug",
+        short: Some('d'),
+    },
+    LongOpt {
+        name: "version",
+        short: Some('v'),
+    },
+    LongOpt {
+        name: "help",
+        short: Some('h'),
+    },
     // fttyd additions, additive and opt-in.
-    LongOpt { name: "file-root", short: None },
+    LongOpt {
+        name: "file-root",
+        short: None,
+    },
 ];
 
 fn takes_arg(opt: &LongOpt) -> bool {
@@ -294,7 +393,9 @@ pub fn parse(prog: &str, args: &[String]) -> Result<Invocation> {
         while index < chars.len() {
             let short = chars[index];
             let Some(opt) = short_opt(short) else {
-                return Err(CliError::usage(format!("{prog}: invalid option -- '{short}'")));
+                return Err(CliError::usage(format!(
+                    "{prog}: invalid option -- '{short}'"
+                )));
             };
             if takes_arg(opt) {
                 let rest: String = chars[index + 1..].iter().collect();
@@ -341,14 +442,20 @@ fn resolve_long(prog: &str, name: &str) -> Result<&'static LongOpt> {
     if let Some(exact) = LONG_OPTS.iter().find(|opt| opt.name == name) {
         return Ok(exact);
     }
-    let candidates: Vec<&'static LongOpt> =
-        LONG_OPTS.iter().filter(|opt| opt.name.starts_with(name)).collect();
+    let candidates: Vec<&'static LongOpt> = LONG_OPTS
+        .iter()
+        .filter(|opt| opt.name.starts_with(name))
+        .collect();
     match candidates.len() {
         1 => Ok(candidates[0]),
-        0 => Err(CliError::usage(format!("{prog}: unrecognized option '--{name}'"))),
+        0 => Err(CliError::usage(format!(
+            "{prog}: unrecognized option '--{name}'"
+        ))),
         _ => {
-            let names: Vec<String> =
-                candidates.iter().map(|opt| format!("'--{}'", opt.name)).collect();
+            let names: Vec<String> = candidates
+                .iter()
+                .map(|opt| format!("'--{}'", opt.name))
+                .collect();
             Err(CliError::usage(format!(
                 "{prog}: option '--{name}' is ambiguous; possibilities: {}",
                 names.join(" ")
@@ -489,7 +596,9 @@ fn apply_value(
         "debug" => cfg.debug = parse_int("debug", value)? as i32,
         "client-option" => add_client_option(cfg, value, prog)?,
         other => {
-            return Err(CliError::usage(format!("{prog}: invalid option '--{other}'")));
+            return Err(CliError::usage(format!(
+                "{prog}: invalid option '--{other}'"
+            )));
         }
     }
     Ok(None)
@@ -502,8 +611,8 @@ fn add_client_option(cfg: &mut Config, raw: &str, prog: &str) -> Result<()> {
         )));
     };
     // ttyd parses the value as JSON and falls back to a plain string.
-    let parsed =
-        serde_json::from_str(value).unwrap_or_else(|_| serde_json::Value::String(value.to_string()));
+    let parsed = serde_json::from_str(value)
+        .unwrap_or_else(|_| serde_json::Value::String(value.to_string()));
     cfg.client_options.push((key.to_string(), parsed));
     Ok(())
 }
@@ -533,7 +642,8 @@ fn parse_int(name: &str, value: &str) -> Result<i64> {
         Some(rest) => (true, rest),
         None => (false, trimmed.strip_prefix('+').unwrap_or(trimmed)),
     };
-    let (radix, digits) = if let Some(hex) = digits.strip_prefix("0x").or(digits.strip_prefix("0X")) {
+    let (radix, digits) = if let Some(hex) = digits.strip_prefix("0x").or(digits.strip_prefix("0X"))
+    {
         (16, hex)
     } else if digits.len() > 1 && digits.starts_with('0') {
         (8, &digits[1..])
@@ -541,7 +651,11 @@ fn parse_int(name: &str, value: &str) -> Result<i64> {
         (10, digits)
     };
     let magnitude = if digits.is_empty() {
-        if radix == 8 { 0 } else { return Err(invalid_value(name, value)) }
+        if radix == 8 {
+            0
+        } else {
+            return Err(invalid_value(name, value));
+        }
     } else {
         i64::from_str_radix(digits, radix).map_err(|_| invalid_value(name, value))?
     };
@@ -707,7 +821,10 @@ mod tests {
     fn command_arguments_are_preserved() {
         let cfg = cfg(&["-W", "bash", "-l", "-i"]);
         assert!(cfg.writable);
-        assert_eq!(cfg.command, vec!["bash".to_string(), "-l".to_string(), "-i".to_string()]);
+        assert_eq!(
+            cfg.command,
+            vec!["bash".to_string(), "-l".to_string(), "-i".to_string()]
+        );
     }
 
     #[test]
@@ -715,7 +832,12 @@ mod tests {
         let cfg = cfg(&["-W", "tmux", "new", "-As", "main"]);
         assert_eq!(
             cfg.command,
-            vec!["tmux".to_string(), "new".to_string(), "-As".to_string(), "main".to_string()]
+            vec![
+                "tmux".to_string(),
+                "new".to_string(),
+                "-As".to_string(),
+                "main".to_string()
+            ]
         );
     }
 
@@ -731,9 +853,15 @@ mod tests {
         let args: Vec<String> = vec!["-h".to_string()];
         assert!(matches!(parse("fttyd", &args).unwrap(), Invocation::Help));
         let args: Vec<String> = vec!["-v".to_string()];
-        assert!(matches!(parse("fttyd", &args).unwrap(), Invocation::Version));
+        assert!(matches!(
+            parse("fttyd", &args).unwrap(),
+            Invocation::Version
+        ));
         let args: Vec<String> = vec!["-Wv".to_string()];
-        assert!(matches!(parse("fttyd", &args).unwrap(), Invocation::Version));
+        assert!(matches!(
+            parse("fttyd", &args).unwrap(),
+            Invocation::Version
+        ));
     }
 
     #[test]
@@ -777,7 +905,12 @@ mod tests {
     #[test]
     fn client_option_without_assignment_is_rejected() {
         let args: Vec<String> = vec!["-t".into(), "bash".into()];
-        assert!(parse("fttyd", &args).unwrap_err().message.contains("format: key=value"));
+        assert!(
+            parse("fttyd", &args)
+                .unwrap_err()
+                .message
+                .contains("format: key=value")
+        );
     }
 
     #[test]
@@ -804,13 +937,23 @@ mod tests {
     #[test]
     fn ambiguous_long_option_is_rejected() {
         let args: Vec<String> = vec!["--s".into()];
-        assert!(parse("fttyd", &args).unwrap_err().message.contains("ambiguous"));
+        assert!(
+            parse("fttyd", &args)
+                .unwrap_err()
+                .message
+                .contains("ambiguous")
+        );
     }
 
     #[test]
     fn unknown_option_is_rejected() {
         let args: Vec<String> = vec!["--nope".into()];
-        assert!(parse("fttyd", &args).unwrap_err().message.contains("unrecognized option"));
+        assert!(
+            parse("fttyd", &args)
+                .unwrap_err()
+                .message
+                .contains("unrecognized option")
+        );
     }
 
     #[test]
@@ -825,7 +968,10 @@ mod tests {
 
     #[test]
     fn unix_socket_detection() {
-        assert_eq!(cfg(&["-i", "/tmp/x.sock", "bash"]).unix_socket_path(), Some("/tmp/x.sock"));
+        assert_eq!(
+            cfg(&["-i", "/tmp/x.sock", "bash"]).unix_socket_path(),
+            Some("/tmp/x.sock")
+        );
         assert_eq!(cfg(&["-i", "eth0", "bash"]).unix_socket_path(), None);
     }
 
@@ -841,6 +987,11 @@ mod tests {
     #[test]
     fn custom_index_must_exist_and_not_be_a_dir() {
         let args: Vec<String> = vec!["-I".into(), "/definitely/not/here".into()];
-        assert!(parse("fttyd", &args).unwrap_err().message.contains("Can not stat index.html"));
+        assert!(
+            parse("fttyd", &args)
+                .unwrap_err()
+                .message
+                .contains("Can not stat index.html")
+        );
     }
 }

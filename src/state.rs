@@ -44,7 +44,10 @@ impl AppState {
     }
 
     fn remove_client(&self) {
-        let remaining = self.clients.fetch_sub(1, Ordering::SeqCst).saturating_sub(1);
+        let remaining = self
+            .clients
+            .fetch_sub(1, Ordering::SeqCst)
+            .saturating_sub(1);
         if remaining == 0 && (self.cfg.once || self.cfg.exit_no_conn) {
             self.shutdown.notify_one();
         }
@@ -78,7 +81,10 @@ mod tests {
     use super::*;
 
     fn cfg() -> Config {
-        Config { command: vec!["bash".into()], ..Config::default() }
+        Config {
+            command: vec!["bash".into()],
+            ..Config::default()
+        }
     }
 
     #[test]
@@ -96,7 +102,13 @@ mod tests {
 
     #[test]
     fn max_clients_is_enforced() {
-        let state = AppState::new(Config { max_clients: 1, ..cfg() }, Stats::new());
+        let state = AppState::new(
+            Config {
+                max_clients: 1,
+                ..cfg()
+            },
+            Stats::new(),
+        );
         assert!(state.can_accept_client());
         let _guard = ClientGuard::new(state.clone());
         assert!(!state.can_accept_client());
@@ -104,7 +116,13 @@ mod tests {
 
     #[test]
     fn once_refuses_a_second_client() {
-        let state = AppState::new(Config { once: true, ..cfg() }, Stats::new());
+        let state = AppState::new(
+            Config {
+                once: true,
+                ..cfg()
+            },
+            Stats::new(),
+        );
         assert!(state.can_accept_client());
         let _guard = ClientGuard::new(state.clone());
         assert!(!state.can_accept_client());
@@ -113,8 +131,7 @@ mod tests {
     #[test]
     fn unlimited_by_default() {
         let state = AppState::new(cfg(), Stats::new());
-        let _guards: Vec<ClientGuard> =
-            (0..10).map(|_| ClientGuard::new(state.clone())).collect();
+        let _guards: Vec<ClientGuard> = (0..10).map(|_| ClientGuard::new(state.clone())).collect();
         assert!(state.can_accept_client());
         assert_eq!(state.client_count(), 10);
     }

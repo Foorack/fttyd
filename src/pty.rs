@@ -40,7 +40,11 @@ pub struct ExitStatus {
 impl ExitStatus {
     /// ttyd maps a clean exit to 1000 and everything else to 1006.
     pub fn close_code(&self) -> u16 {
-        if self.code == 0 { crate::proto::CLOSE_NORMAL } else { crate::proto::CLOSE_ABNORMAL }
+        if self.code == 0 {
+            crate::proto::CLOSE_NORMAL
+        } else {
+            crate::proto::CLOSE_ABNORMAL
+        }
     }
 }
 
@@ -71,7 +75,9 @@ pub fn spawn(spec: &SessionSpec) -> std::io::Result<(PtyControl, PtyOutput)> {
         pixel_width: 0,
         pixel_height: 0,
     };
-    let pair = pty_system.openpty(size).map_err(|err| std::io::Error::other(err.to_string()))?;
+    let pair = pty_system
+        .openpty(size)
+        .map_err(|err| std::io::Error::other(err.to_string()))?;
 
     let mut command = CommandBuilder::new(program);
     command.args(args);
@@ -83,65 +89,87 @@ pub fn spawn(spec: &SessionSpec) -> std::io::Result<(PtyControl, PtyOutput)> {
         command.cwd(cwd);
     }
 
-    let mut child =
-        pair.slave.spawn_command(command).map_err(|err| std::io::Error::other(err.to_string()))?;
+    let mut child = pair
+        .slave
+        .spawn_command(command)
+        .map_err(|err| std::io::Error::other(err.to_string()))?;
     // Releasing the slave side is what makes the child see EOF when it exits.
     drop(pair.slave);
 
     let pid = child.process_id();
-    let mut reader =
-        pair.master.try_clone_reader().map_err(|err| std::io::Error::other(err.to_string()))?;
-    let mut writer =
-        pair.master.take_writer().map_err(|err| std::io::Error::other(err.to_string()))?;
+    let mut reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|err| std::io::Error::other(err.to_string()))?;
+    let mut writer = pair
+        .master
+        .take_writer()
+        .map_err(|err| std::io::Error::other(err.to_string()))?;
 
     let (output_tx, output_rx) = mpsc::channel::<Vec<u8>>(OUTPUT_QUEUE);
     let (exit_tx, exit_rx) = oneshot::channel::<ExitStatus>();
     let (input_tx, mut input_rx) = mpsc::channel::<Vec<u8>>(INPUT_QUEUE);
     let read_buffer = spec.read_buffer.max(1);
 
-    std::thread::Builder::new().name("fttyd-pty-read".into()).spawn(move || {
-        let mut buffer = vec![0u8; read_buffer];
-        loop {
-            match reader.read(&mut buffer) {
-                Ok(0) => break,
-                Ok(n) => {
-                    // `blocking_send` implements flow control: when the consumer stops
-                    // draining, this thread parks and the kernel PTY buffer fills,
-                    // which throttles the child instead of growing our memory.
-                    if output_tx.blocking_send(buffer[..n].to_vec()).is_err() {
-                        break;
+    std::thread::Builder::new()
+        .name("fttyd-pty-read".into())
+        .spawn(move || {
+            let mut buffer = vec![0u8; read_buffer];
+            loop {
+                match reader.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        // `blocking_send` implements flow control: when the consumer stops
+                        // draining, this thread parks and the kernel PTY buffer fills,
+                        // which throttles the child instead of growing our memory.
+                        if output_tx.blocking_send(buffer[..n].to_vec()).is_err() {
+                            break;
+                        }
                     }
+                    Err(err) if err.kind() == std::io::ErrorKind::Interrupted => continue,
+                    // EIO is how a Linux PTY master reports that the child went away.
+                    Err(_) => break,
                 }
-                Err(err) if err.kind() == std::io::ErrorKind::Interrupted => continue,
-                // EIO is how a Linux PTY master reports that the child went away.
-                Err(_) => break,
             }
-        }
-    })?;
+        })?;
 
-    std::thread::Builder::new().name("fttyd-pty-write".into()).spawn(move || {
-        while let Some(chunk) = input_rx.blocking_recv() {
-            if writer.write_all(&chunk).is_err() {
-                break;
+    std::thread::Builder::new()
+        .name("fttyd-pty-write".into())
+        .spawn(move || {
+            while let Some(chunk) = input_rx.blocking_recv() {
+                if writer.write_all(&chunk).is_err() {
+                    break;
+                }
             }
-        }
-    })?;
+        })?;
 
-    std::thread::Builder::new().name("fttyd-pty-wait".into()).spawn(move || {
-        let status = match child.wait() {
-            Ok(status) => ExitStatus {
-                code: status.exit_code(),
-                signal: status.signal().map(|signal| signal.to_string()),
-            },
-            // The child could not be reaped: report it as an abnormal exit.
-            Err(_) => ExitStatus { code: u32::from(u8::MAX), signal: None },
-        };
-        let _ = exit_tx.send(status);
-    })?;
+    std::thread::Builder::new()
+        .name("fttyd-pty-wait".into())
+        .spawn(move || {
+            let status = match child.wait() {
+                Ok(status) => ExitStatus {
+                    code: status.exit_code(),
+                    signal: status.signal().map(|signal| signal.to_string()),
+                },
+                // The child could not be reaped: report it as an abnormal exit.
+                Err(_) => ExitStatus {
+                    code: u32::from(u8::MAX),
+                    signal: None,
+                },
+            };
+            let _ = exit_tx.send(status);
+        })?;
 
     Ok((
-        PtyControl { master: std::sync::Mutex::new(pair.master), pid, input: input_tx },
-        PtyOutput { output: output_rx, exited: exit_rx },
+        PtyControl {
+            master: std::sync::Mutex::new(pair.master),
+            pid,
+            input: input_tx,
+        },
+        PtyOutput {
+            output: output_rx,
+            exited: exit_rx,
+        },
     ))
 }
 
@@ -194,24 +222,46 @@ mod tests {
             cwd: None,
             terminal_type: "xterm-256color".into(),
             user: None,
-            size: WindowSize { columns: 80, rows: 24 },
+            size: WindowSize {
+                columns: 80,
+                rows: 24,
+            },
             read_buffer: 4096,
         }
     }
 
     #[test]
     fn clean_exit_closes_normally() {
-        assert_eq!(ExitStatus { code: 0, signal: None }.close_code(), crate::proto::CLOSE_NORMAL);
-        assert_eq!(ExitStatus { code: 1, signal: None }.close_code(), crate::proto::CLOSE_ABNORMAL);
         assert_eq!(
-            ExitStatus { code: 129, signal: Some("SIGHUP".into()) }.close_code(),
+            ExitStatus {
+                code: 0,
+                signal: None
+            }
+            .close_code(),
+            crate::proto::CLOSE_NORMAL
+        );
+        assert_eq!(
+            ExitStatus {
+                code: 1,
+                signal: None
+            }
+            .close_code(),
+            crate::proto::CLOSE_ABNORMAL
+        );
+        assert_eq!(
+            ExitStatus {
+                code: 129,
+                signal: Some("SIGHUP".into())
+            }
+            .close_code(),
             crate::proto::CLOSE_ABNORMAL
         );
     }
 
     #[tokio::test]
     async fn echoes_output_and_reports_exit() {
-        let (control, mut output) = spawn(&spec(&["/bin/sh", "-c", "printf hello; exit 0"])).unwrap();
+        let (control, mut output) =
+            spawn(&spec(&["/bin/sh", "-c", "printf hello; exit 0"])).unwrap();
         let mut collected = Vec::new();
         while let Some(chunk) = output.output.recv().await {
             collected.extend_from_slice(&chunk);
@@ -233,8 +283,12 @@ mod tests {
 
     #[tokio::test]
     async fn input_reaches_the_child() {
-        let (control, mut output) =
-            spawn(&spec(&["/bin/sh", "-c", "read line; printf 'got:%s' \"$line\""])).unwrap();
+        let (control, mut output) = spawn(&spec(&[
+            "/bin/sh",
+            "-c",
+            "read line; printf 'got:%s' \"$line\"",
+        ]))
+        .unwrap();
         assert!(control.write(b"hi\n".to_vec()).await);
         let mut collected = Vec::new();
         while let Some(chunk) = output.output.recv().await {
@@ -253,7 +307,10 @@ mod tests {
         let (control, mut output) = spawn(&spec(&["/bin/sh", "-c", "sleep 30"])).unwrap();
         control.signal(libc::SIGKILL);
         while output.output.recv().await.is_some() {}
-        assert!(output.exited.await.is_ok(), "child should have exited after SIGKILL");
+        assert!(
+            output.exited.await.is_ok(),
+            "child should have exited after SIGKILL"
+        );
     }
 
     #[tokio::test]

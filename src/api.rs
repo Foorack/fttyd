@@ -9,7 +9,7 @@ use axum::extract::{Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
-use tokio::io::{AsyncSeekExt, AsyncReadExt};
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio_util::io::ReaderStream;
 
 use crate::archive::{self, ArchiveFormat};
@@ -31,7 +31,10 @@ fn roots(state: &AppState) -> &[PathBuf] {
 }
 
 fn parse_path(query: &PathQuery) -> Result<PathBuf, ApiError> {
-    let value = query.path.as_deref().ok_or_else(|| ApiError::bad_request("missing path"))?;
+    let value = query
+        .path
+        .as_deref()
+        .ok_or_else(|| ApiError::bad_request("missing path"))?;
     if value.is_empty() {
         return Err(ApiError::bad_request("missing path"));
     }
@@ -50,14 +53,18 @@ pub fn require_writable(state: &AppState) -> Result<(), ApiError> {
     if state.cfg.writable {
         Ok(())
     } else {
-        Err(ApiError::forbidden("server is read-only; start it with --writable"))
+        Err(ApiError::forbidden(
+            "server is read-only; start it with --writable",
+        ))
     }
 }
 
 /// Validates the CSRF token on every non-GET request.
 pub fn require_csrf(state: &AppState, headers: &HeaderMap) -> Result<(), ApiError> {
     let expected = state.cfg.credential.as_deref().unwrap_or("");
-    let presented = headers.get(CSRF_HEADER).and_then(|value| value.to_str().ok());
+    let presented = headers
+        .get(CSRF_HEADER)
+        .and_then(|value| value.to_str().ok());
     match presented {
         Some(value) if constant_time_eq(value.as_bytes(), expected.as_bytes()) => Ok(()),
         _ => Err(ApiError::forbidden("missing or invalid CSRF token")),
@@ -68,7 +75,10 @@ fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
     if left.len() != right.len() {
         return false;
     }
-    left.iter().zip(right).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0
+    left.iter()
+        .zip(right)
+        .fold(0u8, |acc, (a, b)| acc | (a ^ b))
+        == 0
 }
 
 /// Server capabilities, used by the sidebar to decide what to offer.
@@ -127,17 +137,23 @@ async fn download_inner(
     // file behind it". `enforce_roots` canonicalises, so a link cannot escape the roots.
     let metadata = std::fs::metadata(&path)?;
     if metadata.is_dir() {
-        return Err(ApiError::bad_request("directories must be downloaded as an archive"));
+        return Err(ApiError::bad_request(
+            "directories must be downloaded as an archive",
+        ));
     }
     if !metadata.is_file() {
-        return Err(ApiError::bad_request("only regular files can be downloaded"));
+        return Err(ApiError::bad_request(
+            "only regular files can be downloaded",
+        ));
     }
 
     let mut file = tokio::fs::File::open(&path).await?;
     let metadata = file.metadata().await?;
     let len = metadata.len();
 
-    let range = headers.get(header::RANGE).and_then(|value| value.to_str().ok());
+    let range = headers
+        .get(header::RANGE)
+        .and_then(|value| value.to_str().ok());
     let (start, end, partial) = match range.and_then(|value| parse_range(value, len)) {
         Some((start, end)) => (start, end, true),
         None => (0, len.saturating_sub(1), false),
@@ -145,10 +161,9 @@ async fn download_inner(
 
     if len == 0 {
         let mut response = Response::new(Body::empty());
-        response.headers_mut().insert(
-            header::CONTENT_LENGTH,
-            HeaderValue::from_static("0"),
-        );
+        response
+            .headers_mut()
+            .insert(header::CONTENT_LENGTH, HeaderValue::from_static("0"));
         finish_download_headers(&mut response, &path, len, None);
         return Ok(response);
     }
@@ -164,9 +179,10 @@ async fn download_inner(
     if partial {
         *response.status_mut() = StatusCode::PARTIAL_CONTENT;
         let value = format!("bytes {start}-{end}/{len}");
-        response
-            .headers_mut()
-            .insert(header::CONTENT_RANGE, HeaderValue::from_str(&value).unwrap_or(HeaderValue::from_static("bytes 0-0/0")));
+        response.headers_mut().insert(
+            header::CONTENT_RANGE,
+            HeaderValue::from_str(&value).unwrap_or(HeaderValue::from_static("bytes 0-0/0")),
+        );
     }
     finish_download_headers(&mut response, &path, start + length, Some(len));
     Ok(response)
@@ -174,11 +190,17 @@ async fn download_inner(
 
 fn finish_download_headers(response: &mut Response, path: &Path, _served: u64, total: Option<u64>) {
     let headers = response.headers_mut();
-    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/octet-stream"),
+    );
     headers.insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
     headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     if let Some(total) = total {
-        headers.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+        headers.insert(
+            header::X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        );
         let _ = total;
     }
     let name = path
@@ -233,7 +255,9 @@ pub async fn archive(
     State(state): State<Arc<AppState>>,
     Query(query): Query<ArchiveQuery>,
 ) -> Response {
-    let path = match parse_path(&PathQuery { path: query.path.clone() }) {
+    let path = match parse_path(&PathQuery {
+        path: query.path.clone(),
+    }) {
         Ok(path) => path,
         Err(err) => return err.into_response(),
     };
@@ -251,7 +275,10 @@ pub async fn archive(
 fn json_response(value: serde_json::Value) -> Response {
     (
         StatusCode::OK,
-        [(header::CONTENT_TYPE, HeaderValue::from_static("application/json;charset=utf-8"))],
+        [(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json;charset=utf-8"),
+        )],
         value.to_string(),
     )
         .into_response()
@@ -298,9 +325,14 @@ async fn upload_put_inner(
         .ok_or_else(|| ApiError::bad_request("target has no parent directory"))?;
     let parent_meta = std::fs::metadata(parent)?;
     if !parent_meta.is_dir() {
-        return Err(ApiError::bad_request("upload target must be inside a directory"));
+        return Err(ApiError::bad_request(
+            "upload target must be inside a directory",
+        ));
     }
-    if std::fs::metadata(&target).map(|meta| meta.is_dir()).unwrap_or(false) {
+    if std::fs::metadata(&target)
+        .map(|meta| meta.is_dir())
+        .unwrap_or(false)
+    {
         return Err(ApiError::bad_request("target is a directory"));
     }
 
@@ -329,7 +361,9 @@ async fn upload_put_inner(
     if start == 0 {
         let _ = std::fs::remove_file(&temporary);
     } else {
-        let existing = std::fs::metadata(&temporary).map(|meta| meta.len()).unwrap_or(0);
+        let existing = std::fs::metadata(&temporary)
+            .map(|meta| meta.len())
+            .unwrap_or(0);
         if existing != start {
             return Err(ApiError {
                 status: StatusCode::CONFLICT,
@@ -471,7 +505,9 @@ async fn mutate_inner(
     require_writable(state)?;
     require_csrf(state, headers)?;
 
-    let path = parse_path(&PathQuery { path: request.path.clone() })?;
+    let path = parse_path(&PathQuery {
+        path: request.path.clone(),
+    })?;
     fs::enforce_roots(roots(state), &path)?;
     let actor = actor.as_deref().unwrap_or("-");
 
@@ -487,7 +523,9 @@ async fn mutate_inner(
             tracing::info!("file op: mkdir {} actor={actor}", path.display());
         }
         "rename" => {
-            let to = parse_path(&PathQuery { path: request.to.clone() })?;
+            let to = parse_path(&PathQuery {
+                path: request.to.clone(),
+            })?;
             fs::enforce_roots(roots(state), &to)?;
             if std::fs::symlink_metadata(&to).is_ok() {
                 return Err(ApiError {
@@ -496,7 +534,11 @@ async fn mutate_inner(
                 });
             }
             std::fs::rename(&path, &to)?;
-            tracing::info!("file op: rename {} -> {} actor={actor}", path.display(), to.display());
+            tracing::info!(
+                "file op: rename {} -> {} actor={actor}",
+                path.display(),
+                to.display()
+            );
         }
         "chmod" => {
             let mode = request
@@ -543,7 +585,9 @@ async fn delete_inner(
     let path = parse_path(query)?;
     fs::enforce_roots(roots(state), &path)?;
     if path == Path::new("/") {
-        return Err(ApiError::forbidden("refusing to delete the filesystem root"));
+        return Err(ApiError::forbidden(
+            "refusing to delete the filesystem root",
+        ));
     }
     let metadata = std::fs::symlink_metadata(&path)?;
     if metadata.is_dir() {
@@ -571,7 +615,10 @@ fn parse_content_range(value: &str) -> Result<ContentRange, ApiError> {
     let (range, total) = rest.split_once('/').ok_or_else(invalid)?;
     let total: u64 = total.trim().parse().map_err(|_| invalid())?;
     if range.trim() == "*" {
-        return Ok(ContentRange { start: total, total });
+        return Ok(ContentRange {
+            start: total,
+            total,
+        });
     }
     let (start, _end) = range.trim().split_once('-').ok_or_else(invalid)?;
     let start: u64 = start.trim().parse().map_err(|_| invalid())?;
@@ -582,7 +629,10 @@ fn parse_content_range(value: &str) -> Result<ContentRange, ApiError> {
 }
 
 fn temporary_path(target: &Path) -> PathBuf {
-    let name = target.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
+    let name = target
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
     target.with_file_name(format!(".{name}.fttyd-part"))
 }
 
@@ -592,7 +642,11 @@ fn safe_relative_path(name: &str) -> Result<PathBuf, ApiError> {
     for part in name.split(['/', '\\']) {
         match part {
             "" | "." => continue,
-            ".." => return Err(ApiError::bad_request("upload name escapes the target directory")),
+            ".." => {
+                return Err(ApiError::bad_request(
+                    "upload name escapes the target directory",
+                ));
+            }
             part if part.contains('\0') => {
                 return Err(ApiError::bad_request("upload name contains a NUL byte"));
             }
@@ -655,7 +709,10 @@ mod tests {
 
     #[test]
     fn csrf_token_must_match() {
-        let mut cfg = crate::cli::Config { command: vec!["bash".into()], ..crate::cli::Config::default() };
+        let mut cfg = crate::cli::Config {
+            command: vec!["bash".into()],
+            ..crate::cli::Config::default()
+        };
         cfg.credential = Some("secret".into());
         let state = AppState::new(cfg, crate::stats::Stats::new());
         let mut headers = HeaderMap::new();
@@ -669,11 +726,17 @@ mod tests {
     #[test]
     fn csrf_without_credentials_still_requires_the_header() {
         let state = AppState::new(
-            crate::cli::Config { command: vec!["bash".into()], ..crate::cli::Config::default() },
+            crate::cli::Config {
+                command: vec!["bash".into()],
+                ..crate::cli::Config::default()
+            },
             crate::stats::Stats::new(),
         );
         let mut headers = HeaderMap::new();
-        assert!(require_csrf(&state, &headers).is_err(), "header presence is the guard");
+        assert!(
+            require_csrf(&state, &headers).is_err(),
+            "header presence is the guard"
+        );
         headers.insert(CSRF_HEADER, HeaderValue::from_static(""));
         assert!(require_csrf(&state, &headers).is_ok());
     }
@@ -681,7 +744,10 @@ mod tests {
     #[test]
     fn readonly_servers_refuse_mutations() {
         let state = AppState::new(
-            crate::cli::Config { command: vec!["bash".into()], ..crate::cli::Config::default() },
+            crate::cli::Config {
+                command: vec!["bash".into()],
+                ..crate::cli::Config::default()
+            },
             crate::stats::Stats::new(),
         );
         assert!(require_writable(&state).is_err());
@@ -701,7 +767,11 @@ mod tests {
     fn uploads_are_refused_when_the_disk_cannot_hold_them() {
         let error = ensure_free_space(Path::new("/"), u64::MAX).unwrap_err();
         assert_eq!(error.status, StatusCode::INSUFFICIENT_STORAGE);
-        assert!(error.message.contains("not enough free space"), "{}", error.message);
+        assert!(
+            error.message.contains("not enough free space"),
+            "{}",
+            error.message
+        );
         assert!(ensure_free_space(Path::new("/"), 1024).is_ok());
     }
 
@@ -709,8 +779,14 @@ mod tests {
     fn upload_names_cannot_escape_the_target() {
         assert!(safe_relative_path("../escape").is_err());
         assert!(safe_relative_path("a/../../b").is_err());
-        assert_eq!(safe_relative_path("dir/file.txt").unwrap(), PathBuf::from("dir/file.txt"));
-        assert_eq!(safe_relative_path("/abs/file.txt").unwrap(), PathBuf::from("abs/file.txt"));
+        assert_eq!(
+            safe_relative_path("dir/file.txt").unwrap(),
+            PathBuf::from("dir/file.txt")
+        );
+        assert_eq!(
+            safe_relative_path("/abs/file.txt").unwrap(),
+            PathBuf::from("abs/file.txt")
+        );
         assert!(safe_relative_path("./").is_err());
     }
 
@@ -727,10 +803,18 @@ mod tests {
 
     #[test]
     fn paths_must_be_absolute_and_clean() {
-        assert!(parse_path(&PathQuery { path: Some("relative".into()) }).is_err());
+        assert!(
+            parse_path(&PathQuery {
+                path: Some("relative".into())
+            })
+            .is_err()
+        );
         assert!(parse_path(&PathQuery { path: None }).is_err());
         assert_eq!(
-            parse_path(&PathQuery { path: Some("/tmp/./a/../b".into()) }).unwrap(),
+            parse_path(&PathQuery {
+                path: Some("/tmp/./a/../b".into())
+            })
+            .unwrap(),
             PathBuf::from("/tmp/b")
         );
     }

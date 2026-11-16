@@ -7,8 +7,8 @@ mod fs;
 mod proto;
 mod pty;
 mod server;
-mod stats;
 mod state;
+mod stats;
 mod tls;
 mod ws;
 
@@ -27,7 +27,11 @@ fn main() -> ExitCode {
         .and_then(|path| Path::new(path).file_name())
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| "fttyd".to_string());
-    let args = if argv.is_empty() { &argv[..] } else { &argv[1..] };
+    let args = if argv.is_empty() {
+        &argv[..]
+    } else {
+        &argv[1..]
+    };
 
     match cli::parse(&prog, args) {
         Ok(Invocation::Help) => {
@@ -53,7 +57,10 @@ fn run(prog: &str, cfg: Config) -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    let runtime = match tokio::runtime::Builder::new_multi_thread().enable_all().build() {
+    let runtime = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
         Ok(runtime) => runtime,
         Err(err) => {
             eprintln!("{prog}: failed to start the async runtime: {err}");
@@ -73,7 +80,10 @@ fn run(prog: &str, cfg: Config) -> ExitCode {
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 async fn serve(cfg: Config) -> Result<(), BoxError> {
-    let state = state::AppState::new(cfg, stats::Stats::new().spawn(std::time::Duration::from_secs(1)));
+    let state = state::AppState::new(
+        cfg,
+        stats::Stats::new().spawn(std::time::Duration::from_secs(1)),
+    );
     log_config(&state.cfg);
 
     let (listener, port) = bind(&state).await?;
@@ -96,10 +106,14 @@ async fn serve(cfg: Config) -> Result<(), BoxError> {
 
     match listener {
         Listener::Tcp(listener) => {
-            axum::serve(listener, app).with_graceful_shutdown(shutdown).await?
+            axum::serve(listener, app)
+                .with_graceful_shutdown(shutdown)
+                .await?
         }
         Listener::Unix(listener) => {
-            axum::serve(listener, app).with_graceful_shutdown(shutdown).await?
+            axum::serve(listener, app)
+                .with_graceful_shutdown(shutdown)
+                .await?
         }
     }
     Ok(())
@@ -153,7 +167,9 @@ fn interface_address(name: &str, prefer_ipv6: bool) -> Result<IpAddr, BoxError> 
         if interface.interface_name != name {
             continue;
         }
-        let Some(address) = interface.address else { continue };
+        let Some(address) = interface.address else {
+            continue;
+        };
         let Some(address) = address.as_sockaddr_in() else {
             if let Some(address) = address.as_sockaddr_in6() {
                 candidates.push(IpAddr::V6(address.ip()));
@@ -163,7 +179,10 @@ fn interface_address(name: &str, prefer_ipv6: bool) -> Result<IpAddr, BoxError> 
         candidates.push(IpAddr::V4(address.ip()));
     }
     let pick = |want_v6: bool| {
-        candidates.iter().copied().find(|ip| ip.is_ipv6() == want_v6)
+        candidates
+            .iter()
+            .copied()
+            .find(|ip| ip.is_ipv6() == want_v6)
     };
     pick(prefer_ipv6)
         .or_else(|| pick(!prefer_ipv6))
@@ -241,7 +260,11 @@ fn drop_privileges(cfg: &Config) -> Result<(), BoxError> {
 fn open_browser(port: Option<u16>, index_path: &str) {
     let Some(port) = port else { return };
     let url = format!("http://localhost:{port}{index_path}");
-    let command = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+    let command = if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
     match std::process::Command::new(command).arg(&url).spawn() {
         Ok(_) => tracing::info!("opened {url} in the default browser"),
         Err(err) => tracing::warn!("failed to open a browser: {err}"),
@@ -251,7 +274,10 @@ fn open_browser(port: Option<u16>, index_path: &str) {
 fn validate(cfg: &Config) -> Result<(), String> {
     if let Some(cwd) = &cfg.cwd {
         if !cwd.is_dir() {
-            return Err(format!("working directory does not exist: {}", cwd.display()));
+            return Err(format!(
+                "working directory does not exist: {}",
+                cwd.display()
+            ));
         }
     }
     if cfg.ssl && (cfg.ssl_cert.is_none() || cfg.ssl_key.is_none()) {
@@ -274,7 +300,11 @@ fn log_config(cfg: &Config) {
         tracing::info!("  credential: {credential}");
     }
     tracing::info!("  start command: {}", cfg.command.join(" "));
-    tracing::info!("  close signal: {} ({})", cli::signal_name(cfg.sig_code), cfg.sig_code);
+    tracing::info!(
+        "  close signal: {} ({})",
+        cli::signal_name(cfg.sig_code),
+        cfg.sig_code
+    );
     tracing::info!("  terminal type: {}", cfg.terminal_type);
     if !cfg.base_path.is_empty() {
         tracing::info!("endpoints:");
@@ -320,7 +350,8 @@ fn init_logging(prog: &str, debug: i32) {
         15..=30 => "debug",
         _ => "trace",
     };
-    let filter = std::env::var("RUST_LOG").unwrap_or_else(|_| format!("{prog}={level},fttyd={level}"));
+    let filter =
+        std::env::var("RUST_LOG").unwrap_or_else(|_| format!("{prog}={level},fttyd={level}"));
     let _ = tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::new(filter))
         .with_writer(std::io::stderr)
@@ -355,32 +386,51 @@ mod tests {
     fn bind_address_defaults_match_family() {
         let cfg = Config::default();
         assert_eq!(bind_address(&cfg).unwrap(), "0.0.0.0:7681".parse().unwrap());
-        let cfg = Config { ipv6: true, ..Config::default() };
+        let cfg = Config {
+            ipv6: true,
+            ..Config::default()
+        };
         assert_eq!(bind_address(&cfg).unwrap(), "[::]:7681".parse().unwrap());
     }
 
     #[test]
     fn bind_address_accepts_literal_ips() {
-        let cfg = Config { interface: Some("127.0.0.1".into()), port: 9000, ..Config::default() };
-        assert_eq!(bind_address(&cfg).unwrap(), "127.0.0.1:9000".parse().unwrap());
+        let cfg = Config {
+            interface: Some("127.0.0.1".into()),
+            port: 9000,
+            ..Config::default()
+        };
+        assert_eq!(
+            bind_address(&cfg).unwrap(),
+            "127.0.0.1:9000".parse().unwrap()
+        );
     }
 
     #[test]
     fn loopback_interface_resolves() {
-        let cfg = Config { interface: Some("lo".into()), ..Config::default() };
+        let cfg = Config {
+            interface: Some("lo".into()),
+            ..Config::default()
+        };
         let addr = bind_address(&cfg).unwrap();
         assert!(addr.ip().is_loopback() || addr.ip().is_unspecified());
     }
 
     #[test]
     fn missing_cwd_is_rejected() {
-        let cfg = Config { cwd: Some("/nonexistent/dir".into()), ..Config::default() };
+        let cfg = Config {
+            cwd: Some("/nonexistent/dir".into()),
+            ..Config::default()
+        };
         assert!(validate(&cfg).is_err());
     }
 
     #[test]
     fn ssl_without_certificates_is_rejected() {
-        let cfg = Config { ssl: true, ..Config::default() };
+        let cfg = Config {
+            ssl: true,
+            ..Config::default()
+        };
         assert!(validate(&cfg).is_err());
     }
 }

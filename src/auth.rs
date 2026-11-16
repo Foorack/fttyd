@@ -30,7 +30,11 @@ pub fn check(cfg: &Config, headers: &HeaderMap) -> Auth {
             .and_then(|value| value.strip_prefix("Basic "))
             .map(|value| value.trim() == credential)
             .unwrap_or(false);
-        return if authorized { Auth::Allowed { user: None } } else { Auth::Unauthorized };
+        return if authorized {
+            Auth::Allowed { user: None }
+        } else {
+            Auth::Unauthorized
+        };
     }
     Auth::Allowed { user: None }
 }
@@ -46,10 +50,16 @@ fn header_value(headers: &HeaderMap, name: &str) -> Option<String> {
 
 /// `-O`: refuse websocket upgrades whose `Origin` does not match `Host`.
 pub fn origin_matches_host(headers: &HeaderMap) -> bool {
-    let Some(origin) = headers.get(header::ORIGIN).and_then(|value| value.to_str().ok()) else {
+    let Some(origin) = headers
+        .get(header::ORIGIN)
+        .and_then(|value| value.to_str().ok())
+    else {
         return false;
     };
-    let Some(host) = headers.get(header::HOST).and_then(|value| value.to_str().ok()) else {
+    let Some(host) = headers
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+    else {
         return false;
     };
     let Some(origin_host) = origin_authority(origin) else {
@@ -91,16 +101,25 @@ mod tests {
     use axum::http::HeaderValue;
 
     fn config_with_credential() -> Config {
-        Config { credential: Some("dXNlcjpwYXNz".into()), ..Config::default() }
+        Config {
+            credential: Some("dXNlcjpwYXNz".into()),
+            ..Config::default()
+        }
     }
 
     fn config_with_auth_header() -> Config {
-        Config { auth_header: Some("X-Forwarded-User".into()), ..Config::default() }
+        Config {
+            auth_header: Some("X-Forwarded-User".into()),
+            ..Config::default()
+        }
     }
 
     #[test]
     fn no_auth_configured_allows_everything() {
-        assert_eq!(check(&Config::default(), &HeaderMap::new()), Auth::Allowed { user: None });
+        assert_eq!(
+            check(&Config::default(), &HeaderMap::new()),
+            Auth::Allowed { user: None }
+        );
     }
 
     #[test]
@@ -108,11 +127,20 @@ mod tests {
         let cfg = config_with_credential();
         let mut headers = HeaderMap::new();
         assert_eq!(check(&cfg, &headers), Auth::Unauthorized);
-        headers.insert(header::AUTHORIZATION, HeaderValue::from_static("Basic nope"));
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Basic nope"),
+        );
         assert_eq!(check(&cfg, &headers), Auth::Unauthorized);
-        headers.insert(header::AUTHORIZATION, HeaderValue::from_static("Basic dXNlcjpwYXNz"));
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Basic dXNlcjpwYXNz"),
+        );
         assert_eq!(check(&cfg, &headers), Auth::Allowed { user: None });
-        headers.insert(header::AUTHORIZATION, HeaderValue::from_static("Bearer dXNlcjpwYXNz"));
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer dXNlcjpwYXNz"),
+        );
         assert_eq!(check(&cfg, &headers), Auth::Unauthorized);
     }
 
@@ -122,23 +150,37 @@ mod tests {
         let mut headers = HeaderMap::new();
         assert_eq!(check(&cfg, &headers), Auth::ProxyUnauthorized);
         headers.insert("x-forwarded-user", HeaderValue::from_static("alice"));
-        assert_eq!(check(&cfg, &headers), Auth::Allowed { user: Some("alice".into()) });
+        assert_eq!(
+            check(&cfg, &headers),
+            Auth::Allowed {
+                user: Some("alice".into())
+            }
+        );
     }
 
     #[test]
     fn origin_must_match_host() {
         let mut headers = HeaderMap::new();
-        headers.insert(header::ORIGIN, HeaderValue::from_static("http://example.com"));
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("http://example.com"),
+        );
         headers.insert(header::HOST, HeaderValue::from_static("example.com"));
         assert!(origin_matches_host(&headers));
 
-        headers.insert(header::ORIGIN, HeaderValue::from_static("http://example.com:80"));
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("http://example.com:80"),
+        );
         assert!(origin_matches_host(&headers));
 
         headers.insert(header::ORIGIN, HeaderValue::from_static("http://evil.com"));
         assert!(!origin_matches_host(&headers));
 
-        headers.insert(header::ORIGIN, HeaderValue::from_static("http://example.com:8443"));
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("http://example.com:8443"),
+        );
         assert!(!origin_matches_host(&headers));
     }
 
@@ -148,7 +190,10 @@ mod tests {
         headers.insert(header::HOST, HeaderValue::from_static("example.com"));
         assert!(!origin_matches_host(&headers));
         headers.remove(header::HOST);
-        headers.insert(header::ORIGIN, HeaderValue::from_static("http://example.com"));
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("http://example.com"),
+        );
         assert!(!origin_matches_host(&headers));
     }
 

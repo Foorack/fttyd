@@ -102,7 +102,10 @@ impl ControlMessage {
     }
 
     pub fn window_size(&self) -> WindowSize {
-        WindowSize { columns: self.columns, rows: self.rows }
+        WindowSize {
+            columns: self.columns,
+            rows: self.rows,
+        }
     }
 }
 
@@ -126,24 +129,50 @@ mod tests {
     fn window_size_tolerates_missing_and_bad_fields() {
         assert_eq!(
             WindowSize::parse(br#"{"columns":80,"rows":24}"#),
-            WindowSize { columns: 80, rows: 24 }
+            WindowSize {
+                columns: 80,
+                rows: 24
+            }
         );
-        assert_eq!(WindowSize::parse(br#"{"columns":80}"#), WindowSize { columns: 80, rows: 0 });
+        assert_eq!(
+            WindowSize::parse(br#"{"columns":80}"#),
+            WindowSize {
+                columns: 80,
+                rows: 0
+            }
+        );
         assert_eq!(WindowSize::parse(b"not json"), WindowSize::default());
     }
 
     #[test]
     fn window_size_rejects_zero_dimensions() {
-        assert!(!WindowSize { columns: 0, rows: 24 }.is_usable());
-        assert!(WindowSize { columns: 80, rows: 24 }.is_usable());
+        assert!(
+            !WindowSize {
+                columns: 0,
+                rows: 24
+            }
+            .is_usable()
+        );
+        assert!(
+            WindowSize {
+                columns: 80,
+                rows: 24
+            }
+            .is_usable()
+        );
     }
 
     #[test]
     fn control_message_reads_token_and_size() {
-        let msg =
-            ControlMessage::parse(br#"{"AuthToken":"abc","columns":120,"rows":40}"#).unwrap();
+        let msg = ControlMessage::parse(br#"{"AuthToken":"abc","columns":120,"rows":40}"#).unwrap();
         assert_eq!(msg.auth_token.as_deref(), Some("abc"));
-        assert_eq!(msg.window_size(), WindowSize { columns: 120, rows: 40 });
+        assert_eq!(
+            msg.window_size(),
+            WindowSize {
+                columns: 120,
+                rows: 40
+            }
+        );
     }
 
     #[test]

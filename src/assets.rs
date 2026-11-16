@@ -1,7 +1,7 @@
 //! The embedded frontend: one binary, no runtime asset directory.
 
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -71,7 +71,10 @@ pub fn gzipped(path: &str, body: &[u8]) -> Arc<Vec<u8>> {
     }
     let compressed = compress(body);
     let compressed = Arc::new(compressed);
-    cache.lock().unwrap().insert(path.to_string(), compressed.clone());
+    cache
+        .lock()
+        .unwrap()
+        .insert(path.to_string(), compressed.clone());
     compressed
 }
 
@@ -112,7 +115,10 @@ mod tests {
     #[test]
     fn bundled_javascript_is_embedded() {
         let paths = paths();
-        assert!(paths.iter().any(|path| path.starts_with("assets/")), "embedded: {paths:?}");
+        assert!(
+            paths.iter().any(|path| path.starts_with("assets/")),
+            "embedded: {paths:?}"
+        );
         assert_eq!(paths.iter().filter(|path| path.ends_with(".js")).count(), 1);
     }
 
@@ -138,7 +144,9 @@ mod tests {
         let body = b"hello hello hello hello".repeat(100);
         let compressed = gzip_for_test(&body);
         let mut decoded = Vec::new();
-        GzDecoder::new(&compressed[..]).read_to_end(&mut decoded).unwrap();
+        GzDecoder::new(&compressed[..])
+            .read_to_end(&mut decoded)
+            .unwrap();
         assert_eq!(decoded, body);
     }
 

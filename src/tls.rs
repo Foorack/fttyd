@@ -25,8 +25,14 @@ pub fn server_config(cfg: &Config) -> Result<Arc<ServerConfig>, BoxError> {
     // rustls needs a process-wide crypto provider before any config is built.
     let _ = rustls::crypto::ring::default_provider().install_default();
 
-    let cert_path = cfg.ssl_cert.as_deref().ok_or("--ssl-cert is required with --ssl")?;
-    let key_path = cfg.ssl_key.as_deref().ok_or("--ssl-key is required with --ssl")?;
+    let cert_path = cfg
+        .ssl_cert
+        .as_deref()
+        .ok_or("--ssl-cert is required with --ssl")?;
+    let key_path = cfg
+        .ssl_key
+        .as_deref()
+        .ok_or("--ssl-key is required with --ssl")?;
     let certificates = load_certificates(cert_path)?;
     let key = load_private_key(key_path)?;
 
@@ -50,8 +56,8 @@ pub fn server_config(cfg: &Config) -> Result<Arc<ServerConfig>, BoxError> {
 fn load_certificates(path: &Path) -> Result<Vec<CertificateDer<'static>>, BoxError> {
     let file = File::open(path).map_err(|err| format!("{}: {err}", path.display()))?;
     let reader = BufReader::new(file);
-    let certificates: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut { reader })
-        .collect::<Result<_, _>>()?;
+    let certificates: Vec<CertificateDer<'static>> =
+        rustls_pemfile::certs(&mut { reader }).collect::<Result<_, _>>()?;
     if certificates.is_empty() {
         return Err(format!("no certificates found in {}", path.display()).into());
     }
@@ -178,11 +184,18 @@ mod tests {
         let ext = dir.join("server.ext");
         let client_ext = dir.join("client.ext");
 
-        std::fs::write(&ext, "subjectAltName=DNS:localhost,IP:127.0.0.1\nbasicConstraints=CA:FALSE\n")
-            .unwrap();
+        std::fs::write(
+            &ext,
+            "subjectAltName=DNS:localhost,IP:127.0.0.1\nbasicConstraints=CA:FALSE\n",
+        )
+        .unwrap();
         // `openssl x509 -req` emits a v1 certificate unless extensions are supplied, and
         // rustls refuses v1 certificates outright.
-        std::fs::write(&client_ext, "basicConstraints=CA:FALSE\nextendedKeyUsage=clientAuth\n").unwrap();
+        std::fs::write(
+            &client_ext,
+            "basicConstraints=CA:FALSE\nextendedKeyUsage=clientAuth\n",
+        )
+        .unwrap();
 
         openssl(&format!(
             "openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
@@ -215,7 +228,14 @@ mod tests {
             cert = client_cert.display(),
         ));
 
-        Certificates { dir, ca_pem, server_cert, server_key, client_cert, client_key }
+        Certificates {
+            dir,
+            ca_pem,
+            server_cert,
+            server_key,
+            client_cert,
+            client_key,
+        }
     }
 
     fn config_for(certs: &Certificates, client_ca: bool) -> Config {
@@ -260,10 +280,8 @@ mod tests {
             return;
         }
         let certs = certificates();
-        let state = crate::state::AppState::new(
-            config_for(certs, false),
-            crate::stats::Stats::new(),
-        );
+        let state =
+            crate::state::AppState::new(config_for(certs, false), crate::stats::Stats::new());
         let app = crate::server::router(state.clone());
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
@@ -289,10 +307,8 @@ mod tests {
             return;
         }
         let certs = certificates();
-        let state = crate::state::AppState::new(
-            config_for(certs, true),
-            crate::stats::Stats::new(),
-        );
+        let state =
+            crate::state::AppState::new(config_for(certs, true), crate::stats::Stats::new());
         let app = crate::server::router(state.clone());
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
@@ -318,7 +334,10 @@ mod tests {
         let _ = stop_tx.send(());
     }
 
-    fn client_config(certs: &Certificates, with_client_identity: bool) -> Arc<rustls::ClientConfig> {
+    fn client_config(
+        certs: &Certificates,
+        with_client_identity: bool,
+    ) -> Arc<rustls::ClientConfig> {
         let mut roots = RootCertStore::empty();
         for certificate in load_certificates(&certs.ca_pem).unwrap() {
             roots.add(certificate).unwrap();
@@ -342,15 +361,24 @@ mod tests {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
         let client = tokio_rustls::TlsConnector::from(config);
-        let stream =
-            tokio::net::TcpStream::connect(address).await.map_err(|err| err.to_string())?;
+        let stream = tokio::net::TcpStream::connect(address)
+            .await
+            .map_err(|err| err.to_string())?;
         let name = ServerName::try_from("localhost").unwrap();
-        let mut tls = client.connect(name, stream).await.map_err(|err| err.to_string())?;
-        let request = format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
-        tls.write_all(request.as_bytes()).await.map_err(|err| err.to_string())?;
+        let mut tls = client
+            .connect(name, stream)
+            .await
+            .map_err(|err| err.to_string())?;
+        let request =
+            format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+        tls.write_all(request.as_bytes())
+            .await
+            .map_err(|err| err.to_string())?;
         tls.flush().await.map_err(|err| err.to_string())?;
         let mut response = Vec::new();
-        tls.read_to_end(&mut response).await.map_err(|err| err.to_string())?;
+        tls.read_to_end(&mut response)
+            .await
+            .map_err(|err| err.to_string())?;
         if response.is_empty() {
             return Err("server closed the connection without a response".to_string());
         }

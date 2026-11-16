@@ -31,6 +31,51 @@ cargo test                       # unit tests
 ./scripts/docker-tests.sh        # privilege, socket and special-file checks (needs docker)
 ```
 
+## CI
+
+`.github/workflows/ci.yml` runs on every push to every branch and on every pull request:
+
+| Job | What it enforces |
+|---|---|
+| `author check` | no commit in the pushed range credits an AI model |
+| `cargo fmt` | `cargo fmt --all -- --check` |
+| `frontend typecheck` | `bun run typecheck` plus a production build of the bundle |
+| `cargo clippy` | `--all-targets` with `-D warnings` |
+| `cargo test` | the Rust unit tests |
+
+The Playwright and docker suites are not in CI: one needs a browser download, the other
+privileges. Run them locally with the commands under [Build](#build).
+
+Local equivalents:
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test --locked
+(cd web && bun run typecheck)
+./scripts/test-check-authors.sh     # checks the author checker itself
+```
+
+### The author check
+
+`scripts/check-authors.sh [range]` fails when any commit in the range
+
+- has an author or committer whose name or email names an AI model or vendor,
+- carries an attribution trailer (`Co-authored-by`, `Assisted-by`, `Generated-by`, ...)
+  naming one, or
+- contains a "generated with/by <model>" notice.
+
+Tokens covered include Copilot, Claude, ChatGPT/OpenAI, Gemini/Bard, Cursor, Codeium,
+Windsurf, Codex, Devin, Aider, Tabnine, Amazon Q, Mistral, Llama, DeepSeek, Grok and
+others. Mentioning a model in prose is allowed, so a commit *about* removing such
+attribution still passes.
+
+The same rule runs before a commit exists, if you opt in once per clone:
+
+```sh
+git config core.hooksPath .githooks
+```
+
 ## Usage
 
 ```

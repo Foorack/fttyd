@@ -44,7 +44,11 @@ pub async fn ws_handler(
         return (StatusCode::SERVICE_UNAVAILABLE, "too many clients").into_response();
     }
 
-    let extra_args = if cfg.url_arg { url_args(query.as_deref().unwrap_or("")) } else { Vec::new() };
+    let extra_args = if cfg.url_arg {
+        url_args(query.as_deref().unwrap_or(""))
+    } else {
+        Vec::new()
+    };
     let user = user.0.0;
 
     ws.protocols(["tty"])
@@ -102,7 +106,11 @@ async fn terminal_session(
             return;
         }
     };
-    tracing::info!("started process, pid: {:?}, clients: {}", control_handle.pid(), state.client_count());
+    tracing::info!(
+        "started process, pid: {:?}, clients: {}",
+        control_handle.pid(),
+        state.client_count()
+    );
 
     run_session(&cfg, control_handle, output, &mut sink, stream).await;
 }
@@ -150,7 +158,10 @@ async fn handshake(
         if let Some(credential) = &cfg.credential {
             if control.auth_token.as_deref() != Some(credential.as_str()) {
                 tracing::warn!("ws authentication failed");
-                let frame = CloseFrame { code: proto::CLOSE_POLICY_VIOLATION, reason: Utf8Bytes::from_static("unauthorized") };
+                let frame = CloseFrame {
+                    code: proto::CLOSE_POLICY_VIOLATION,
+                    reason: Utf8Bytes::from_static("unauthorized"),
+                };
                 let _ = sink.send(Message::Close(Some(frame))).await;
                 return None;
             }
@@ -246,24 +257,40 @@ async fn run_session(
 
     if client_gone {
         control.signal(cfg.sig_code);
-        tracing::info!("ws closed, signalled child {:?} with {}", control.pid(), crate::cli::signal_name(cfg.sig_code));
+        tracing::info!(
+            "ws closed, signalled child {:?} with {}",
+            control.pid(),
+            crate::cli::signal_name(cfg.sig_code)
+        );
         return;
     }
 
     // The child is gone. Flush whatever is still buffered so the last line of output
     // is not lost, then close with the status-derived code.
     if exit_status.is_none() {
-        exit_status = timeout(EXIT_GRACE, exited).await.ok().and_then(|result| result.ok());
+        exit_status = timeout(EXIT_GRACE, exited)
+            .await
+            .ok()
+            .and_then(|result| result.ok());
     }
     while let Ok(Some(data)) = timeout(DRAIN_GRACE, output.output.recv()).await {
-        if sink.send(Message::Binary(proto::frame(proto::OUTPUT, &data).into())).await.is_err() {
+        if sink
+            .send(Message::Binary(proto::frame(proto::OUTPUT, &data).into()))
+            .await
+            .is_err()
+        {
             return;
         }
     }
 
-    let code = exit_status.map(|status| status.close_code()).unwrap_or(proto::CLOSE_ABNORMAL);
+    let code = exit_status
+        .map(|status| status.close_code())
+        .unwrap_or(proto::CLOSE_ABNORMAL);
     tracing::info!("process exited, closing websocket with {code}");
-    let frame = CloseFrame { code, reason: Utf8Bytes::from_static("") };
+    let frame = CloseFrame {
+        code,
+        reason: Utf8Bytes::from_static(""),
+    };
     let _ = sink.send(Message::Close(Some(frame))).await;
 }
 
@@ -339,7 +366,10 @@ mod tests {
 
     #[test]
     fn url_args_are_collected_in_order() {
-        assert_eq!(url_args("arg=a&arg=b%20c&other=x"), vec!["a".to_string(), "b c".to_string()]);
+        assert_eq!(
+            url_args("arg=a&arg=b%20c&other=x"),
+            vec!["a".to_string(), "b c".to_string()]
+        );
     }
 
     #[test]

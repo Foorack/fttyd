@@ -95,6 +95,18 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
 - [x] Numeric values beside every gauge (no colour-only encoding), visible focus outlines
 - [ ] Full accessibility audit
 
+## CI
+
+- [x] `.github/workflows/ci.yml` on every push and pull request
+  - [x] author check over the pushed range (or full history on first push/rewrite)
+  - [x] `cargo fmt --check`
+  - [x] `cargo clippy -D warnings` for all targets
+  - [x] frontend typecheck + production build
+  - [x] `cargo test --locked`
+- [x] `scripts/check-authors.sh` with 15 self-checks (`scripts/test-check-authors.sh`)
+- [x] Optional pre-commit guard: `.githooks/commit-msg` + `core.hooksPath`
+- [ ] Playwright and docker suites in CI (need a browser download and privileges)
+
 ## Testing and delivery
 
 - [x] Unit tests across CLI, protocol, PTY, auth, routing, state, fs, archives, uploads, stats, TLS

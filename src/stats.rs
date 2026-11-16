@@ -49,7 +49,9 @@ impl Stats {
         std::thread::sleep(Duration::from_millis(200));
         let disks = Disks::new_with_refreshed_list();
         let (sender, _) = watch::channel(Arc::new(sample(&mut system, &disks)));
-        Self { sender: Arc::new(sender) }
+        Self {
+            sender: Arc::new(sender),
+        }
     }
 
     /// Starts the background sampler. Call once, from a running runtime.
@@ -116,22 +118,25 @@ pub fn stream(
 ) -> Sse<impl futures_util::Stream<Item = Result<Event, std::convert::Infallible>>> {
     let pending = Some(receiver.borrow().clone());
 
-    let stream = futures_util::stream::unfold((receiver, pending), |(mut receiver, pending)| async move {
-        match pending {
-            Some(snapshot) => Some((Ok(event(&snapshot)), (receiver, None))),
-            None => {
-                receiver.changed().await.ok()?;
-                let snapshot = receiver.borrow_and_update().clone();
-                Some((Ok(event(&snapshot)), (receiver, None)))
+    let stream =
+        futures_util::stream::unfold((receiver, pending), |(mut receiver, pending)| async move {
+            match pending {
+                Some(snapshot) => Some((Ok(event(&snapshot)), (receiver, None))),
+                None => {
+                    receiver.changed().await.ok()?;
+                    let snapshot = receiver.borrow_and_update().clone();
+                    Some((Ok(event(&snapshot)), (receiver, None)))
+                }
             }
-        }
-    });
+        });
 
     Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default())
 }
 
 fn event(snapshot: &Snapshot) -> Event {
-    Event::default().event("stats").data(serde_json::to_string(snapshot).unwrap_or_default())
+    Event::default()
+        .event("stats")
+        .data(serde_json::to_string(snapshot).unwrap_or_default())
 }
 
 #[cfg(test)]
@@ -142,11 +147,18 @@ mod tests {
     async fn samples_report_plausible_values() {
         let stats = Stats::new();
         let snapshot = stats.subscribe().borrow().clone();
-        assert!(snapshot.cpu >= 0.0 && snapshot.cpu <= 100.0, "cpu: {}", snapshot.cpu);
+        assert!(
+            snapshot.cpu >= 0.0 && snapshot.cpu <= 100.0,
+            "cpu: {}",
+            snapshot.cpu
+        );
         assert!(snapshot.cpu_count >= 1);
         assert!(snapshot.mem_total > 0);
         assert!(snapshot.mem_used <= snapshot.mem_total);
-        assert!(!snapshot.disks.is_empty(), "at least the root filesystem is listed");
+        assert!(
+            !snapshot.disks.is_empty(),
+            "at least the root filesystem is listed"
+        );
     }
 
     #[tokio::test]
@@ -165,7 +177,15 @@ mod tests {
         let stats = Stats::new();
         let snapshot = stats.subscribe().borrow().clone();
         let json = serde_json::to_value(&*snapshot).unwrap();
-        for field in ["cpu", "cpu_count", "mem_total", "mem_used", "disks", "uptime", "load_one"] {
+        for field in [
+            "cpu",
+            "cpu_count",
+            "mem_total",
+            "mem_used",
+            "disks",
+            "uptime",
+            "load_one",
+        ] {
             assert!(json.get(field).is_some(), "missing {field} in {json}");
         }
     }
