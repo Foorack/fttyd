@@ -116,6 +116,7 @@ What is verified where:
 | CLI surface, protocol framing, PTY, path confinement, archives, uploads, stats, TLS | `cargo test` (96 tests) |
 | Terminal behaviour, ttyd-client conformance, sidebar, uploads/downloads, mutations, CSRF, read-only, base path, auth, `-O`/`-m`/`-o`/`-q`/`-a`/`-I`, follow-cwd | `e2e` Playwright suite (37 tests) |
 | `-u`/`-g` drop, `-i`/`-U` sockets, permission errors, `/proc` and `/dev` listings, archive of special files | `scripts/docker-tests.sh` |
+| Static musl binary (static-pie, HTTP + websocket/PTY + TLS verified inside alpine) | `scripts/build-static.sh` |
 
 `-B` (open a browser) is implemented but not covered by an automated test, because the
 test would launch a browser on the machine running it.

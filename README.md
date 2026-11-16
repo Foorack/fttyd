@@ -7,10 +7,22 @@ Replace `ttyd` with `fttyd` in an existing invocation and nothing else changes. 
 ## Build
 
 ```sh
-cargo build --release
+cargo build --release          # one binary, glibc
+./scripts/build-static.sh      # one binary, no libc at all (needs docker)
 ```
 
-One binary. The frontend is built with [bun](https://bun.sh) (or any `npm`) by `build.rs` on the first build and embedded, so the result has no runtime asset directory and no network dependencies.
+The frontend is built with [bun](https://bun.sh) (or any `npm`) by `build.rs` on the first build and embedded, so the result has no runtime asset directory and no network dependencies.
+
+**Static builds.** The only non-Rust dependency is a C compiler that targets musl, because `ring` (rustls's crypto backend) assembles C. `scripts/build-static.sh` does it in a `rust:1-alpine` container, which needs nothing on the host beyond docker. Without docker:
+
+```sh
+sudo apt install musl-tools
+rustup target add x86_64-unknown-linux-musl
+CC_x86_64_unknown_linux_musl=musl-gcc \
+  cargo build --release --target x86_64-unknown-linux-musl
+```
+
+Either way the result is `static-pie linked` and runs on alpine or `scratch` images.
 
 ```sh
 cargo test                       # unit tests

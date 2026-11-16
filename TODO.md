@@ -102,4 +102,6 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
 - [x] Docker tests (`debian:bookworm-slim`): `-u`/`-g`, `-i`/`-U`, permission-denied paths, `/proc`, `/dev`
 - [x] README and man page
 - [x] Single binary: assets embedded, `ldd` shows only libc/libm/libgcc
-- [ ] Fully static musl build (needs a musl cross toolchain; the glibc build is one file)
+- [x] Fully static musl build (`scripts/build-static.sh`; `ring` needs a musl-targeting C compiler,
+      so the script builds in `rust:1-alpine`). Verified `static-pie linked`, and HTTP, websocket/PTY
+      and TLS all exercised from an alpine container with no glibc.
