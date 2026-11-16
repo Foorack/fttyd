@@ -21,6 +21,20 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route(&cfg.token_path(), get(token_handler))
         .route(&cfg.ws_path(), get(ws::ws_handler))
         .route(&format!("{}assets/{{*path}}", cfg.index_path()), get(asset_handler))
+        .route(&format!("{}api/info", cfg.index_path()), get(crate::api::info))
+        .route(&format!("{}api/download", cfg.index_path()), get(crate::api::download))
+        .route(&format!("{}api/archive", cfg.index_path()), get(crate::api::archive))
+        .route(&format!("{}api/stats", cfg.index_path()), get(stats_handler))
+        .route(
+            &format!("{}api/upload", cfg.index_path()),
+            axum::routing::put(crate::api::upload_put).post(crate::api::upload_multipart),
+        )
+        .route(
+            &format!("{}api/fs", cfg.index_path()),
+            get(crate::api::list)
+                .patch(crate::api::mutate)
+                .delete(crate::api::delete),
+        )
         .fallback(not_found);
 
     if !cfg.base_path.is_empty() {
@@ -149,6 +163,10 @@ async fn asset_handler(State(_state): State<Arc<AppState>>, Path(path): Path<Str
     response
 }
 
+async fn stats_handler(State(state): State<Arc<AppState>>) -> Response {
+    crate::stats::stream(state.stats.subscribe()).into_response()
+}
+
 async fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "not found").into_response()
 }
@@ -176,7 +194,7 @@ mod tests {
     use tower::ServiceExt;
 
     fn test_state() -> Arc<AppState> {
-        AppState::new(crate::cli::Config { command: vec!["bash".into()], ..crate::cli::Config::default() })
+        AppState::new(crate::cli::Config { command: vec!["bash".into()], ..crate::cli::Config::default() }, crate::stats::Stats::new())
     }
 
     async fn status(app: &Router, uri: &str) -> StatusCode {
@@ -200,7 +218,7 @@ mod tests {
     async fn token_echoes_the_credential() {
         let mut cfg = crate::cli::Config { command: vec!["bash".into()], ..crate::cli::Config::default() };
         cfg.credential = Some("dXNlcjpwYXNz".into());
-        let app = router(AppState::new(cfg));
+        let app = router(AppState::new(cfg, crate::stats::Stats::new()));
         let request = Request::builder()
             .uri("/token")
             .header("authorization", "Basic dXNlcjpwYXNz")
@@ -215,7 +233,7 @@ mod tests {
     async fn missing_credential_is_challenged() {
         let mut cfg = crate::cli::Config { command: vec!["bash".into()], ..crate::cli::Config::default() };
         cfg.credential = Some("dXNlcjpwYXNz".into());
-        let app = router(AppState::new(cfg));
+        let app = router(AppState::new(cfg, crate::stats::Stats::new()));
         let request = Request::builder().uri("/").body(Body::empty()).unwrap();
         let response = app.oneshot(request).await.unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -226,7 +244,7 @@ mod tests {
     async fn base_path_moves_every_endpoint() {
         let mut cfg = crate::cli::Config { command: vec!["bash".into()], ..crate::cli::Config::default() };
         cfg.base_path = "/mounted/here".into();
-        let app = router(AppState::new(cfg));
+        let app = router(AppState::new(cfg, crate::stats::Stats::new()));
         assert_eq!(status(&app, "/mounted/here").await, StatusCode::FOUND);
         assert_eq!(status(&app, "/mounted/here/").await, StatusCode::OK);
         assert_eq!(status(&app, "/mounted/here/token").await, StatusCode::OK);

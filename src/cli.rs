@@ -61,6 +61,8 @@ pub struct Config {
     pub ssl_ca: Option<PathBuf>,
     pub debug: i32,
     pub command: Vec<String>,
+    /// `--file-root`: when set, the file API refuses paths outside these directories.
+    pub file_roots: Vec<PathBuf>,
 }
 
 impl Default for Config {
@@ -95,6 +97,7 @@ impl Default for Config {
             ssl_ca: None,
             debug: DEFAULT_LOG_LEVEL,
             command: Vec::new(),
+            file_roots: Vec::new(),
         }
     }
 }
@@ -162,70 +165,75 @@ pub type Result<T> = std::result::Result<T, CliError>;
 
 struct LongOpt {
     name: &'static str,
-    short: char,
+    /// `None` for fttyd-only options that have no ttyd short form.
+    short: Option<char>,
 }
 
 /// Every long option ttyd accepts, in its own order.
 const LONG_OPTS: &[LongOpt] = &[
-    LongOpt { name: "port", short: 'p' },
-    LongOpt { name: "interface", short: 'i' },
-    LongOpt { name: "socket-owner", short: 'U' },
-    LongOpt { name: "credential", short: 'c' },
-    LongOpt { name: "auth-header", short: 'H' },
-    LongOpt { name: "uid", short: 'u' },
-    LongOpt { name: "gid", short: 'g' },
-    LongOpt { name: "signal", short: 's' },
-    LongOpt { name: "cwd", short: 'w' },
-    LongOpt { name: "index", short: 'I' },
-    LongOpt { name: "base-path", short: 'b' },
-    LongOpt { name: "ping-interval", short: 'P' },
-    LongOpt { name: "srv-buf-size", short: 'f' },
-    LongOpt { name: "ipv6", short: '6' },
-    LongOpt { name: "ssl", short: 'S' },
-    LongOpt { name: "ssl-cert", short: 'C' },
-    LongOpt { name: "ssl-key", short: 'K' },
-    LongOpt { name: "ssl-ca", short: 'A' },
-    LongOpt { name: "url-arg", short: 'a' },
-    LongOpt { name: "writable", short: 'W' },
-    LongOpt { name: "terminal-type", short: 'T' },
-    LongOpt { name: "client-option", short: 't' },
-    LongOpt { name: "check-origin", short: 'O' },
-    LongOpt { name: "max-clients", short: 'm' },
-    LongOpt { name: "once", short: 'o' },
-    LongOpt { name: "exit-no-conn", short: 'q' },
-    LongOpt { name: "browser", short: 'B' },
-    LongOpt { name: "debug", short: 'd' },
-    LongOpt { name: "version", short: 'v' },
-    LongOpt { name: "help", short: 'h' },
+    LongOpt { name: "port", short: Some('p') },
+    LongOpt { name: "interface", short: Some('i') },
+    LongOpt { name: "socket-owner", short: Some('U') },
+    LongOpt { name: "credential", short: Some('c') },
+    LongOpt { name: "auth-header", short: Some('H') },
+    LongOpt { name: "uid", short: Some('u') },
+    LongOpt { name: "gid", short: Some('g') },
+    LongOpt { name: "signal", short: Some('s') },
+    LongOpt { name: "cwd", short: Some('w') },
+    LongOpt { name: "index", short: Some('I') },
+    LongOpt { name: "base-path", short: Some('b') },
+    LongOpt { name: "ping-interval", short: Some('P') },
+    LongOpt { name: "srv-buf-size", short: Some('f') },
+    LongOpt { name: "ipv6", short: Some('6') },
+    LongOpt { name: "ssl", short: Some('S') },
+    LongOpt { name: "ssl-cert", short: Some('C') },
+    LongOpt { name: "ssl-key", short: Some('K') },
+    LongOpt { name: "ssl-ca", short: Some('A') },
+    LongOpt { name: "url-arg", short: Some('a') },
+    LongOpt { name: "writable", short: Some('W') },
+    LongOpt { name: "terminal-type", short: Some('T') },
+    LongOpt { name: "client-option", short: Some('t') },
+    LongOpt { name: "check-origin", short: Some('O') },
+    LongOpt { name: "max-clients", short: Some('m') },
+    LongOpt { name: "once", short: Some('o') },
+    LongOpt { name: "exit-no-conn", short: Some('q') },
+    LongOpt { name: "browser", short: Some('B') },
+    LongOpt { name: "debug", short: Some('d') },
+    LongOpt { name: "version", short: Some('v') },
+    LongOpt { name: "help", short: Some('h') },
+    // fttyd additions, additive and opt-in.
+    LongOpt { name: "file-root", short: None },
 ];
 
-fn short_takes_arg(c: char) -> bool {
+fn takes_arg(opt: &LongOpt) -> bool {
     matches!(
-        c,
-        'p' | 'i'
-            | 'U'
-            | 'c'
-            | 'H'
-            | 'u'
-            | 'g'
-            | 's'
-            | 'w'
-            | 'I'
-            | 'b'
-            | 'P'
-            | 'f'
-            | 'C'
-            | 'K'
-            | 'A'
-            | 't'
-            | 'T'
-            | 'm'
-            | 'd'
+        opt.name,
+        "port"
+            | "interface"
+            | "socket-owner"
+            | "credential"
+            | "auth-header"
+            | "uid"
+            | "gid"
+            | "signal"
+            | "cwd"
+            | "index"
+            | "base-path"
+            | "ping-interval"
+            | "srv-buf-size"
+            | "ssl-cert"
+            | "ssl-key"
+            | "ssl-ca"
+            | "client-option"
+            | "terminal-type"
+            | "max-clients"
+            | "debug"
+            | "file-root"
     )
 }
 
-fn short_exists(c: char) -> bool {
-    LONG_OPTS.iter().any(|opt| opt.short == c)
+fn short_opt(c: char) -> Option<&'static LongOpt> {
+    LONG_OPTS.iter().find(|opt| opt.short == Some(c))
 }
 
 /// Parses `args`, excluding the program name.
@@ -256,15 +264,15 @@ pub fn parse(prog: &str, args: &[String]) -> Result<Invocation> {
                 Some((name, value)) => (name, Some(value.to_string())),
                 None => (long, None),
             };
-            let short = resolve_long(prog, name)?;
-            if short_takes_arg(short) {
+            let opt = resolve_long(prog, name)?;
+            if takes_arg(opt) {
                 let value = match inline {
                     Some(value) => value,
                     None => next_value(args, &mut i).ok_or_else(|| {
                         CliError::usage(format!("{prog}: option '--{name}' requires an argument"))
                     })?,
                 };
-                if let Some(done) = apply_value(&mut cfg, short, &value, args, &mut i, prog)? {
+                if let Some(done) = apply_value(&mut cfg, opt, &value, prog)? {
                     return Ok(done);
                 }
             } else {
@@ -273,7 +281,7 @@ pub fn parse(prog: &str, args: &[String]) -> Result<Invocation> {
                         "{prog}: option '--{name}' doesn't allow an argument"
                     )));
                 }
-                if let Some(done) = apply_flag(&mut cfg, short, prog)? {
+                if let Some(done) = apply_flag(&mut cfg, opt, prog)? {
                     return Ok(done);
                 }
             }
@@ -285,10 +293,10 @@ pub fn parse(prog: &str, args: &[String]) -> Result<Invocation> {
         let mut index = 0;
         while index < chars.len() {
             let short = chars[index];
-            if !short_exists(short) {
+            let Some(opt) = short_opt(short) else {
                 return Err(CliError::usage(format!("{prog}: invalid option -- '{short}'")));
-            }
-            if short_takes_arg(short) {
+            };
+            if takes_arg(opt) {
                 let rest: String = chars[index + 1..].iter().collect();
                 let value = if rest.is_empty() {
                     next_value(args, &mut i).ok_or_else(|| {
@@ -297,12 +305,12 @@ pub fn parse(prog: &str, args: &[String]) -> Result<Invocation> {
                 } else {
                     rest
                 };
-                if let Some(done) = apply_value(&mut cfg, short, &value, args, &mut i, prog)? {
+                if let Some(done) = apply_value(&mut cfg, opt, &value, prog)? {
                     return Ok(done);
                 }
                 break;
             }
-            if let Some(done) = apply_flag(&mut cfg, short, prog)? {
+            if let Some(done) = apply_flag(&mut cfg, opt, prog)? {
                 return Ok(done);
             }
             index += 1;
@@ -326,17 +334,17 @@ fn next_value(args: &[String], i: &mut usize) -> Option<String> {
     }
 }
 
-fn resolve_long(prog: &str, name: &str) -> Result<char> {
+fn resolve_long(prog: &str, name: &str) -> Result<&'static LongOpt> {
     if name.is_empty() {
         return Err(CliError::usage(format!("{prog}: unrecognized option '--'")));
     }
     if let Some(exact) = LONG_OPTS.iter().find(|opt| opt.name == name) {
-        return Ok(exact.short);
+        return Ok(exact);
     }
-    let candidates: Vec<&LongOpt> =
+    let candidates: Vec<&'static LongOpt> =
         LONG_OPTS.iter().filter(|opt| opt.name.starts_with(name)).collect();
     match candidates.len() {
-        1 => Ok(candidates[0].short),
+        1 => Ok(candidates[0]),
         0 => Err(CliError::usage(format!("{prog}: unrecognized option '--{name}'"))),
         _ => {
             let names: Vec<String> =
@@ -349,20 +357,20 @@ fn resolve_long(prog: &str, name: &str) -> Result<char> {
     }
 }
 
-fn apply_flag(cfg: &mut Config, c: char, _prog: &str) -> Result<Option<Invocation>> {
-    match c {
-        'a' => cfg.url_arg = true,
-        'W' => cfg.writable = true,
-        'O' => cfg.check_origin = true,
-        'o' => cfg.once = true,
-        'q' => cfg.exit_no_conn = true,
-        'B' => cfg.browser = true,
-        '6' => cfg.ipv6 = true,
-        'S' => cfg.ssl = true,
-        'h' => return Ok(Some(Invocation::Help)),
-        'v' => return Ok(Some(Invocation::Version)),
+fn apply_flag(cfg: &mut Config, opt: &LongOpt, _prog: &str) -> Result<Option<Invocation>> {
+    match opt.name {
+        "url-arg" => cfg.url_arg = true,
+        "writable" => cfg.writable = true,
+        "check-origin" => cfg.check_origin = true,
+        "once" => cfg.once = true,
+        "exit-no-conn" => cfg.exit_no_conn = true,
+        "browser" => cfg.browser = true,
+        "ipv6" => cfg.ipv6 = true,
+        "ssl" => cfg.ssl = true,
+        "help" => return Ok(Some(Invocation::Help)),
+        "version" => return Ok(Some(Invocation::Version)),
         other => {
-            return Err(CliError::usage(format!("invalid option -- '{other}'")));
+            return Err(CliError::usage(format!("invalid option '--{other}'")));
         }
     }
     Ok(None)
@@ -370,23 +378,35 @@ fn apply_flag(cfg: &mut Config, c: char, _prog: &str) -> Result<Option<Invocatio
 
 fn apply_value(
     cfg: &mut Config,
-    c: char,
+    opt: &LongOpt,
     value: &str,
-    args: &[String],
-    i: &mut usize,
     prog: &str,
 ) -> Result<Option<Invocation>> {
-    match c {
-        'p' => {
+    match opt.name {
+        "file-root" => {
+            let path = std::path::PathBuf::from(value);
+            if !path.is_absolute() {
+                return Err(CliError::usage(format!(
+                    "{prog}: --file-root needs an absolute path: {value}"
+                )));
+            }
+            if !path.is_dir() {
+                return Err(CliError::usage(format!(
+                    "{prog}: --file-root is not a directory: {value}"
+                )));
+            }
+            cfg.file_roots.push(path);
+        }
+        "port" => {
             let port = parse_int("port", value)?;
             if !(0..=65535).contains(&port) {
                 return Err(CliError::usage(format!("{prog}: invalid port: {value}")));
             }
             cfg.port = port as u16;
         }
-        'i' => cfg.interface = Some(value.to_string()),
-        'U' => cfg.socket_owner = Some(value.to_string()),
-        'c' => {
+        "interface" => cfg.interface = Some(value.to_string()),
+        "socket-owner" => cfg.socket_owner = Some(value.to_string()),
+        "credential" => {
             if !value.contains(':') {
                 return Err(CliError::usage(format!(
                     "{prog}: invalid credential, format: username:password"
@@ -395,30 +415,30 @@ fn apply_value(
             use base64::Engine as _;
             cfg.credential = Some(base64::engine::general_purpose::STANDARD.encode(value));
         }
-        'H' => cfg.auth_header = Some(value.to_string()),
-        'u' => {
+        "auth-header" => cfg.auth_header = Some(value.to_string()),
+        "uid" => {
             let uid = parse_int("uid", value)?;
             if uid < 0 {
                 return Err(CliError::usage(format!("{prog}: invalid uid: {value}")));
             }
             cfg.uid = Some(uid as u32);
         }
-        'g' => {
+        "gid" => {
             let gid = parse_int("gid", value)?;
             if gid < 0 {
                 return Err(CliError::usage(format!("{prog}: invalid gid: {value}")));
             }
             cfg.gid = Some(gid as u32);
         }
-        's' => {
+        "signal" => {
             let sig = signal_from_name(value);
             if sig <= 0 {
                 return Err(CliError::usage(format!("{prog}: invalid signal: {value}")));
             }
             cfg.sig_code = sig;
         }
-        'w' => cfg.cwd = Some(PathBuf::from(value)),
-        'I' => {
+        "cwd" => cfg.cwd = Some(PathBuf::from(value)),
+        "index" => {
             let path = expand_home(value);
             let meta = std::fs::metadata(&path).map_err(|err| {
                 CliError::usage(format!(
@@ -434,8 +454,8 @@ fn apply_value(
             }
             cfg.index = Some(path);
         }
-        'b' => cfg.base_path = normalize_base_path(value),
-        'P' => {
+        "base-path" => cfg.base_path = normalize_base_path(value),
+        "ping-interval" => {
             let interval = parse_int("ping-interval", value)?;
             if interval < 0 {
                 return Err(CliError::usage(format!(
@@ -444,7 +464,7 @@ fn apply_value(
             }
             cfg.ping_interval = interval as u64;
         }
-        'f' => {
+        "srv-buf-size" => {
             let size = parse_int("srv-buf-size", value)?;
             if size <= 0 {
                 return Err(CliError::usage(format!(
@@ -453,11 +473,11 @@ fn apply_value(
             }
             cfg.srv_buf_size = size as usize;
         }
-        'C' => cfg.ssl_cert = Some(PathBuf::from(value)),
-        'K' => cfg.ssl_key = Some(PathBuf::from(value)),
-        'A' => cfg.ssl_ca = Some(PathBuf::from(value)),
-        'T' => cfg.terminal_type = value.to_string(),
-        'm' => {
+        "ssl-cert" => cfg.ssl_cert = Some(PathBuf::from(value)),
+        "ssl-key" => cfg.ssl_key = Some(PathBuf::from(value)),
+        "ssl-ca" => cfg.ssl_ca = Some(PathBuf::from(value)),
+        "terminal-type" => cfg.terminal_type = value.to_string(),
+        "max-clients" => {
             let max = parse_int("max-clients", value)?;
             if max < 0 {
                 return Err(CliError::usage(format!(
@@ -466,10 +486,10 @@ fn apply_value(
             }
             cfg.max_clients = max as usize;
         }
-        'd' => cfg.debug = parse_int("debug", value)? as i32,
-        't' => add_client_option(cfg, value, prog)?,
+        "debug" => cfg.debug = parse_int("debug", value)? as i32,
+        "client-option" => add_client_option(cfg, value, prog)?,
         other => {
-            return Err(CliError::usage(format!("{prog}: invalid option -- '{other}'")));
+            return Err(CliError::usage(format!("{prog}: invalid option '--{other}'")));
         }
     }
     Ok(None)
@@ -622,6 +642,7 @@ pub fn help_text(prog: &str) -> String {
          -K, --ssl-key           SSL key file path\n    \
          -A, --ssl-ca            SSL CA file path for client certificate verification\n    \
          -d, --debug             Set log level (default: 7)\n    \
+         --file-root             Restrict the file API to this directory, repeatable (default: the whole filesystem)\n    \
          -v, --version           Print the version and exit\n    \
          -h, --help              Print this text and exit\n\
          \n\

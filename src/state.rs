@@ -6,17 +6,24 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::Notify;
 
 use crate::cli::Config;
+use crate::stats::Stats;
 
 pub struct AppState {
     pub cfg: Arc<Config>,
+    pub stats: Stats,
     clients: AtomicUsize,
     /// Signalled when `--once`/`--exit-no-conn` want the server to stop.
     pub shutdown: Notify,
 }
 
 impl AppState {
-    pub fn new(cfg: Config) -> Arc<Self> {
-        Arc::new(Self { cfg: Arc::new(cfg), clients: AtomicUsize::new(0), shutdown: Notify::new() })
+    pub fn new(cfg: Config, stats: Stats) -> Arc<Self> {
+        Arc::new(Self {
+            cfg: Arc::new(cfg),
+            stats,
+            clients: AtomicUsize::new(0),
+            shutdown: Notify::new(),
+        })
     }
 
     pub fn client_count(&self) -> usize {
@@ -76,7 +83,7 @@ mod tests {
 
     #[test]
     fn counts_clients() {
-        let state = AppState::new(cfg());
+        let state = AppState::new(cfg(), Stats::new());
         assert_eq!(state.client_count(), 0);
         {
             let _first = ClientGuard::new(state.clone());
@@ -89,7 +96,7 @@ mod tests {
 
     #[test]
     fn max_clients_is_enforced() {
-        let state = AppState::new(Config { max_clients: 1, ..cfg() });
+        let state = AppState::new(Config { max_clients: 1, ..cfg() }, Stats::new());
         assert!(state.can_accept_client());
         let _guard = ClientGuard::new(state.clone());
         assert!(!state.can_accept_client());
@@ -97,7 +104,7 @@ mod tests {
 
     #[test]
     fn once_refuses_a_second_client() {
-        let state = AppState::new(Config { once: true, ..cfg() });
+        let state = AppState::new(Config { once: true, ..cfg() }, Stats::new());
         assert!(state.can_accept_client());
         let _guard = ClientGuard::new(state.clone());
         assert!(!state.can_accept_client());
@@ -105,7 +112,7 @@ mod tests {
 
     #[test]
     fn unlimited_by_default() {
-        let state = AppState::new(cfg());
+        let state = AppState::new(cfg(), Stats::new());
         let _guards: Vec<ClientGuard> =
             (0..10).map(|_| ClientGuard::new(state.clone())).collect();
         assert!(state.can_accept_client());

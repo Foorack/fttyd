@@ -49,42 +49,47 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
 
 ## 3. Filesystem read-only
 
-- [ ] `GET /api/fs` listing
-  - [ ] name, size, mtime, mode, type, symlink target, per-entry errors
-  - [ ] canonicalisation, `..` and symlink escape rejection (unit tests)
-- [ ] `GET /api/download`
-  - [ ] `Content-Length`, `Content-Disposition`, `Range`/`206`
-  - [ ] refuses directories and special files
-- [ ] `GET /api/archive?format=zip|tar.gz`
-  - [ ] streamed into the body, ZIP64, no temp files
-  - [ ] skips FIFOs/sockets/devices, no symlink following, preserves mtime/mode
-  - [ ] `unzip -t` / `tar -tzf` verification in E2E
-- [ ] File tree UI
-  - [ ] lazy loading, breadcrumbs, sort, hidden toggle, sizes/mtime/mode
-  - [ ] keyboard navigation, locked entries, large-directory virtualisation
+- [x] `GET /api/fs` listing
+  - [x] name, size, mtime, mode, type, symlink target, per-entry errors (unit: `fs::tests`)
+  - [x] normalisation, `..` and symlink escape rejection (unit: `fs::tests::roots_*`)
+- [x] `GET /api/download`
+  - [x] `Content-Length`, `Content-Disposition`, `Range`/`206` (unit: `api::tests::range_*`)
+  - [x] refuses directories and special files
+- [x] `GET /api/archive?format=zip|tar.gz`
+  - [x] streamed into the body through a bounded channel, ZIP64, no temp files
+  - [x] skips FIFOs/sockets/devices, no symlink following, preserves mtime/mode/uid/gid
+  - [x] skipped entries are reported inside the archive (`fttyd-archive-report.txt`)
+  - [x] `unzip -t` / `tar -tzf` verification in E2E
+- [x] File tree UI
+  - [x] lazy loading, sort, hidden toggle, sizes/mtime, symlink marking
+  - [x] keyboard navigation, locked entries, row windowing for large directories
 
 ## 4. Stats
 
-- [ ] Host-wide sampler at 1 Hz, primed so the first CPU sample is valid
-- [ ] `GET /api/stats` SSE with subscriber fan-out
-- [ ] CPU / RAM / root disk gauges with numeric percentages
-- [ ] `3fr / 4px / 1fr` grid, draggable splitter persisted, mobile drawer
+- [x] Host-wide sampler at 1 Hz, primed so the first CPU sample is valid (unit: `stats::tests`)
+- [x] `GET /api/stats` SSE with subscriber fan-out
+- [x] CPU / RAM / root disk gauges with numeric percentages
+- [x] `1fr / 4px / sidebar` grid with the terminal at ~3/4, draggable splitter persisted
+- [x] Mobile drawer below 900px (E2E)
 
 ## 5. Mutations (`-W` only)
 
-- [ ] CSRF header on every non-GET, default-on, config-free
-- [ ] Audit log of actor (from `-H`) + operation + path
-- [ ] `POST /api/upload`
-  - [ ] multipart, resumable via `Content-Range`, free-space check
-  - [ ] upload queue with per-file progress, drag and drop
-- [ ] `PATCH`/`DELETE /api/fs`: rename, mkdir, chmod, delete
-- [ ] Read-only servers reject every mutation with 403 (E2E)
+- [x] CSRF header on every non-GET, default-on, config-free (unit + E2E)
+- [x] Audit log of actor (from `-H`) + operation + path
+- [x] Uploads
+  - [x] `PUT /api/upload` raw body, resumable via `Content-Range` (E2E)
+  - [x] `POST /api/upload` multipart for `curl -F`
+  - [x] free-space check, atomic rename from a `.fttyd-part` file
+  - [x] UI upload with progress, drag and drop including directories
+- [x] `PATCH`/`DELETE /api/fs`: rename, mkdir, chmod, delete (E2E)
+- [x] Read-only servers reject every mutation with 403 (E2E)
 
 ## 6. Sync and polish
 
 - [ ] Tree follows shell cwd (OSC 7, `/proc/<pid>/cwd` fallback)
 - [ ] "Open terminal here", resync control
-- [ ] Mobile drawer, accessibility pass on gauges and tree
+- [x] Mobile drawer
+- [ ] Accessibility pass on gauges and tree
 
 ## Testing and delivery
 

@@ -1,9 +1,13 @@
+mod api;
+mod archive;
 mod assets;
 mod auth;
 mod cli;
+mod fs;
 mod proto;
 mod pty;
 mod server;
+mod stats;
 mod state;
 mod ws;
 
@@ -68,7 +72,7 @@ fn run(prog: &str, cfg: Config) -> ExitCode {
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 async fn serve(cfg: Config) -> Result<(), BoxError> {
-    let state = state::AppState::new(cfg);
+    let state = state::AppState::new(cfg, stats::Stats::new().spawn(std::time::Duration::from_secs(1)));
     log_config(&state.cfg);
 
     let (listener, port) = bind(&state).await?;
