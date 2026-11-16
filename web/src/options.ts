@@ -31,12 +31,13 @@ export const DEFAULT_CLIENT_OPTIONS: ClientOptions = {
 };
 
 const DEFAULT_THEME: ITheme = {
-  // The VGA palette, straight from the owner's GNOME terminal profile: pure primaries,
-  // pure black, bold-is-bright. Loud on purpose, the way a real terminal is loud.
+  // The VGA palette from the owner's GNOME terminal profile: pure primaries and
+  // bold-is-bright, on a near-black slate instead of the profile's pure black, which
+  // reads as a hole on a web page.
   foreground: "#d0cfcc",
-  background: "#000000",
+  background: "#080b10",
   cursor: "#fbbf24",
-  cursorAccent: "#000000",
+  cursorAccent: "#080b10",
   selectionBackground: "#3a3a3a",
   black: "#000000",
   red: "#cd0000",

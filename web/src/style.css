@@ -1,5 +1,5 @@
 :root {
-  /* Sidebar chrome: near-black slate around a pure-black terminal, amber accent. */
+  /* Ink & Amber chrome, with the terminal's VGA palette sitting on the same slate. */
   --bg: #080b10;
   --bg-sidebar: #0c1218;
   --bg-raised: #131c26;
@@ -52,7 +52,7 @@ button {
 .terminal-pane {
   position: relative;
   /* Matches the terminal's own background exactly; the padding must not show a seam. */
-  background: #000000;
+  background: var(--bg);
 }
 
 .terminal-host {
