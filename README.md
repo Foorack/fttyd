@@ -13,16 +13,17 @@ cargo build --release          # one binary, glibc
 
 The frontend is built with [bun](https://bun.sh) (or any `npm`) by `build.rs` on the first build and embedded, so the result has no runtime asset directory and no network dependencies.
 
-**Static builds.** The only non-Rust dependency is a C compiler that targets musl, because `ring` (rustls's crypto backend) assembles C. `scripts/build-static.sh` does it in a `rust:1-alpine` container, which needs nothing on the host beyond docker. Without docker:
+**Static builds.** The only non-Rust dependency is a C compiler that targets musl, because `ring` (rustls's crypto backend) assembles C. On Debian/Ubuntu:
 
 ```sh
 sudo apt install musl-tools
 rustup target add x86_64-unknown-linux-musl
-CC_x86_64_unknown_linux_musl=musl-gcc \
-  cargo build --release --target x86_64-unknown-linux-musl
+cargo build --release --target x86_64-unknown-linux-musl
 ```
 
-Either way the result is `static-pie linked` and runs on alpine or `scratch` images.
+`musl-tools` installs `x86_64-linux-musl-gcc`, which cc-rs finds by name, so no `CC` override is needed. Distributions that only ship the generic wrapper need `CC_x86_64_unknown_linux_musl=musl-gcc`.
+
+`./scripts/build-static.sh [output]` does all of that, and falls back to building inside `rust:1-alpine` when the host has no musl toolchain (needs only docker). Either way the result is `static-pie linked`, is checked to actually be static, and runs on alpine or `scratch` images.
 
 ```sh
 cargo test                       # unit tests
