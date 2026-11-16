@@ -8,7 +8,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 use rust_embed::Embed;
 
 #[derive(Embed)]
-#[folder = "web/dist/"]
+// build.rs stages the bundle here; nothing is read from the source tree at compile time.
+#[folder = "$OUT_DIR/web/"]
 struct WebAssets;
 
 pub struct Asset {

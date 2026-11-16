@@ -115,6 +115,10 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
 - [x] `-t rendererType="dom"` is honoured even though preferences arrive after the
       terminal is built (E2E)
 
+- [x] Publishable crate: `build.rs` stages the bundle in `OUT_DIR` (never the source
+      tree), `include` ships it, and `cargo publish --dry-run` verifies without bun
+- [x] Package metadata: repository, keywords, categories (no dry-run warnings)
+
 ## CI
 
 - [x] `.github/workflows/ci.yml` on every push and pull request

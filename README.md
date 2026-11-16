@@ -11,7 +11,13 @@ cargo build --release          # one binary, glibc
 ./scripts/build-static.sh      # one binary, no libc at all (needs docker)
 ```
 
-The frontend is built with [bun](https://bun.sh) (or any `npm`) by `build.rs` on the first build and embedded, so the result has no runtime asset directory and no network dependencies.
+The frontend is built with [bun](https://bun.sh) (or any `npm`) by `build.rs` on the first build and embedded, so the result has no runtime asset directory and no network dependencies. `build.rs` compiles it into `web/dist`, copies that into `OUT_DIR`, and `rust-embed` reads it from there — so the build never writes outside `OUT_DIR`, which is what `cargo publish` requires.
+
+**From crates.io.** The published crate ships the built bundle, so `cargo install fttyd` compiles it without needing bun or a network. Publishing therefore means building the bundle first:
+
+```sh
+(cd web && bun run build) && cargo publish
+```
 
 **Static builds.** The only non-Rust dependency is a C compiler that targets musl, because `ring` (rustls's crypto backend) assembles C. On Debian/Ubuntu:
 

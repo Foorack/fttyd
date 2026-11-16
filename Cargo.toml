@@ -6,6 +6,29 @@ rust-version = "1.85"
 description = "Web terminal with a system stats sidebar and file manager, drop-in compatible with ttyd"
 license = "MIT"
 readme = "README.md"
+repository = "https://github.com/Foorack/fttyd"
+keywords = ["terminal", "ttyd", "web", "websocket", "pty"]
+categories = ["command-line-utilities", "web-programming"]
+# Everything the build needs, and nothing else: the bundle is staged from web/dist, so a
+# published crate compiles without a Node toolchain.
+include = [
+    # Leading slash: an unanchored name matches at any depth, which would sweep in every
+    # LICENSE and README under node_modules.
+    "/src/**",
+    "/build.rs",
+    "/Cargo.toml",
+    "/LICENSE",
+    "/README.md",
+    "/man/**",
+    "/web/index.html",
+    "/web/package.json",
+    "/web/bun.lock",
+    "/web/tsconfig.json",
+    "/web/vite.config.ts",
+    "/web/src/**",
+    "/web/public/**",
+    "/web/dist/**",
+]
 
 [dependencies]
 axum = { version = "0.8.9", features = ["ws", "multipart", "http1", "query", "tokio"] }
@@ -19,7 +42,7 @@ libc = "0.2.191"
 nix = { version = "0.32.0", features = ["user", "fs", "net"] }
 percent-encoding = "2.3.2"
 portable-pty = "0.9.0"
-rust-embed = { version = "8.14.0", features = ["debug-embed"] }
+rust-embed = { version = "8.14.0", features = ["debug-embed", "interpolate-folder-path"] }
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 rustls-pemfile = { version = "2.2.0", default-features = false, features = ["std"] }
 serde = { version = "1.0.229", features = ["derive"] }
