@@ -93,3 +93,24 @@ test("a custom index replaces the UI but the protocol still works", async ({ pag
 test("--index rejects a directory", async () => {
   await expect(startServer(["-W", "-I", "/tmp", "bash"])).rejects.toThrow(/index/i);
 });
+
+test("-t rendererType selects the DOM renderer mid-session", async ({ page }) => {
+  // The preference arrives over the socket, after the terminal has been created with
+  // WebGL, so honouring it means shedding the addon rather than ignoring the option.
+  const server = await startServer([
+    "-W",
+    "-t",
+    'rendererType="dom"',
+    "bash",
+    "--norc",
+    "--noprofile",
+  ]);
+  try {
+    await page.goto(server.baseURL);
+    await waitForConnected(page);
+    await expect(page.locator(".xterm canvas")).toHaveCount(0);
+    await expect.poll(async () => page.locator(".xterm-rows > div").count()).toBeGreaterThan(0);
+  } finally {
+    await server.stop();
+  }
+});

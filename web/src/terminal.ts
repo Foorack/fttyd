@@ -58,6 +58,7 @@ export class TerminalView {
   private disposed = false;
   private resizeTimer: number | null = null;
   private readonly resizeObserver: ResizeObserver;
+  private webgl: WebglAddon | null = null;
   private readonly leaveGuard = (event: BeforeUnloadEvent) => {
     if (!this.settings.client.disableLeaveAlert) {
       event.preventDefault();
@@ -131,9 +132,17 @@ export class TerminalView {
       // Disposing the addon is what makes xterm.js fall back to the DOM renderer.
       webgl.onContextLoss(() => webgl.dispose());
       this.term.loadAddon(webgl);
+      this.webgl = webgl;
     } catch {
       // No WebGL here: the built-in DOM renderer is already active.
     }
+  }
+
+  /** `-t rendererType=` arrives after the terminal exists, so honour it by unloading. */
+  private applyRendererPreference(): void {
+    if (this.settings.client.rendererType === "webgl" || !this.webgl) return;
+    this.webgl.dispose();
+    this.webgl = null;
   }
 
   private installListeners(): void {
@@ -264,6 +273,7 @@ export class TerminalView {
           const prefs = JSON.parse(text) as Record<string, unknown>;
           applyPreferences(this.settings, prefs);
           this.term.options = this.settings.term;
+          this.applyRendererPreference();
           this.titleFixed = this.settings.client.titleFixed;
           if (this.titleFixed) document.title = this.titleFixed;
           this.callbacks.onPreferences?.(prefs);
