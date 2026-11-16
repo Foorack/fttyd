@@ -65,6 +65,11 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
 - [x] File tree UI
   - [x] lazy loading, sort, hidden toggle, sizes/mtime, symlink marking
   - [x] keyboard navigation, locked entries, row windowing for large directories
+  - [x] windowing repaints on scroll and on `scrollIntoView`, so rows below the fold
+        exist before you can click them (E2E: 300-entry directory)
+  - [x] climbs above the server's working directory by asking the API for the parent, then
+        rebasing the tree root in place (one keypress per level, expansion preserved)
+  - [x] a confined `--file-root` stops the climb at the boundary and says why (E2E)
 
 ## 4. Stats
 

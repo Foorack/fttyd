@@ -357,3 +357,85 @@ test("downloading a symlink follows it to the file", async ({ page, request }) =
     await close();
   }
 });
+
+test("the tree climbs above the directory the server started in", async ({ page }) => {
+  const fixture = makeFixture("climb");
+  // Start inside a subdirectory, with the whole filesystem allowed.
+  const server = await startServer([
+    "-W",
+    "-w",
+    `${fixture.root}/sub`,
+    "--file-root",
+    "/",
+    "bash",
+    "--norc",
+    "--noprofile",
+  ]);
+  try {
+    await page.goto(server.baseURL);
+    const rootRow = page.locator(".root-row");
+    await expect(rootRow).toContainText(`${fixture.root}/sub`);
+
+    await page.getByTestId("up").click();
+    await expect(rootRow).toContainText(fixture.root);
+
+    await page.getByTestId("up").click();
+    await expect(rootRow).not.toContainText(fixture.root);
+
+    // Navigating by hand pins the tree, like clicking a row does.
+    await expect(page.getByTestId("follow")).not.toHaveClass(/active/);
+  } finally {
+    await server.stop();
+    fixture.cleanup();
+  }
+});
+
+test("a confined root stops the climb and says why", async ({ page }) => {
+  const fixture = makeFixture("confined");
+  const server = await startServer([
+    "-W",
+    "-w",
+    fixture.root,
+    "--file-root",
+    fixture.root,
+    "bash",
+    "--norc",
+    "--noprofile",
+  ]);
+  try {
+    await page.goto(server.baseURL);
+    const rootRow = page.locator(".root-row");
+    await expect(rootRow).toContainText(fixture.root);
+
+    await page.getByTestId("up").click();
+    await expect(page.locator(".tree-status")).toContainText("outside the allowed roots");
+    await expect(rootRow).toContainText(fixture.root);
+  } finally {
+    await server.stop();
+    fixture.cleanup();
+  }
+});
+
+test("a long directory renders the rows you scroll to", async ({ page }) => {
+  const fixture = makeFixture("windowing");
+  const many = path.join(fixture.root, "many");
+  mkdirSync(many);
+  for (let index = 0; index < 300; index += 1) {
+    writeFileSync(path.join(many, `file-${String(index).padStart(3, "0")}.txt`), "x");
+  }
+  const server = await startServer(["-w", fixture.root, "bash", "--norc", "--noprofile"]);
+  try {
+    await page.goto(server.baseURL);
+    await page.locator(".file-row[data-kind=dir]", { hasText: "many/" }).dblclick();
+    await expect(page.locator(".file-row", { hasText: "file-000.txt" })).toBeVisible();
+
+    // The tail of the list starts outside the window, so it exists only after scrolling.
+    const list = page.getByTestId("file-tree");
+    await expect(page.locator(".file-row", { hasText: "file-299.txt" })).toHaveCount(0);
+    await list.evaluate((element) => element.scrollTo({ top: element.scrollHeight }));
+    await expect(page.locator(".file-row", { hasText: "file-299.txt" })).toBeVisible();
+  } finally {
+    await server.stop();
+    fixture.cleanup();
+  }
+});

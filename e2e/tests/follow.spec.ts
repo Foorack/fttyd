@@ -101,3 +101,37 @@ test("readonly sessions hide the open-terminal action", async ({ page }) => {
     fixture.cleanup();
   }
 });
+
+test("following returns to the shell after the tree climbed away", async ({ page }) => {
+  const fixture = makeFixture("follow-climb");
+  const server = await startServer([
+    "-W",
+    "-w",
+    `${fixture.root}/sub`,
+    "--file-root",
+    "/",
+    "bash",
+    "--norc",
+    "--noprofile",
+  ]);
+  try {
+    await page.goto(server.baseURL);
+    const rootRow = page.locator(".root-row");
+    await expect(rootRow).toContainText(`${fixture.root}/sub`);
+
+    // Climb past the shell's directory: the tree now shows an ancestor listing.
+    await page.getByTestId("up").click();
+    await expect(rootRow).toContainText(fixture.root);
+    await page.getByTestId("up").click();
+    await expect(rootRow).not.toContainText(fixture.root);
+    await expect(page.getByTestId("follow")).not.toHaveClass(/active/);
+
+    // Re-enabling follow anchors the tree on the shell again.
+    await page.getByTestId("follow").click();
+    await expect(page.locator(".file-row.selected")).toContainText("sub/");
+    await expect(page.getByTestId("follow")).toHaveClass(/active/);
+  } finally {
+    await server.stop();
+    fixture.cleanup();
+  }
+});

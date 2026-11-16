@@ -63,6 +63,7 @@ export class FileTree {
   private followEnabled = true;
   private lastShellCwd: string | null = null;
   private followButton: HTMLButtonElement | null = null;
+  private renderQueued = false;
 
   constructor(
     container: HTMLElement,
@@ -122,7 +123,12 @@ export class FileTree {
     if (!this.followEnabled) return;
     if (this.selected === path) return;
     const node = await this.reveal(path);
-    if (!node) return;
+    if (!node) {
+      // The tree was rebased somewhere that does not contain the shell's directory.
+      // Anchor it at the shell instead, which is what "follow" promises.
+      await this.rebase(path, path);
+      return;
+    }
     this.selected = node.path;
     this.render();
     this.scrollIntoView(node.path);
@@ -188,7 +194,8 @@ export class FileTree {
       return element;
     };
 
-    const up = button("\u2191", "Parent directory", () => this.goUp());
+    const up = button("\u2191", "Parent directory", () => void this.goUp());
+    up.dataset.testid = "up";
     const refresh = button("\u21bb", "Refresh", () => void this.refresh(this.root.path));
     const hidden = button("\u25cc", "Toggle hidden files", () => {
       this.showHidden = !this.showHidden;
@@ -251,6 +258,10 @@ export class FileTree {
     });
 
     this.list.addEventListener("keydown", (event) => this.onKeydown(event));
+
+    // Rows outside the window are not in the DOM, so scrolling has to repaint or the
+    // user scrolls into blank spacers.
+    this.list.addEventListener("scroll", () => this.scheduleRender());
 
     this.list.addEventListener("contextmenu", (event) => {
       const row = (event.target as HTMLElement).closest<HTMLElement>(".file-row");
@@ -316,7 +327,7 @@ export class FileTree {
         event.preventDefault();
         const node = this.selected ? this.nodeByPath.get(this.selected) : undefined;
         if (node?.expanded) void this.toggle(node.path);
-        else this.goUp();
+        else void this.goUp();
         break;
       }
       case "Enter": {
@@ -328,7 +339,7 @@ export class FileTree {
       }
       case "Backspace":
         event.preventDefault();
-        this.goUp();
+        void this.goUp();
         break;
       case "Delete": {
         event.preventDefault();
@@ -341,22 +352,90 @@ export class FileTree {
     }
   }
 
-  private goUp(): void {
+  private async goUp(): Promise<void> {
+    // Navigating by hand pins the tree, like clicking a row does.
+    this.disableFollowing();
     const current = this.selected ? this.nodeByPath.get(this.selected) : undefined;
     const from = current ?? this.root;
     const parent = parentPath(from.path);
     if (!parent) return;
+
     const node = this.nodeByPath.get(parent);
     if (node) {
       this.selected = node.path;
-      if (!node.expanded) void this.toggle(node.path);
-    } else if (parent === this.root.path) {
-      this.selected = this.root.path;
-    } else {
+      if (!node.expanded) await this.toggle(node.path);
+      this.toggleExpandedAncestors(parent);
+      this.render();
+      this.options.onPathChange?.(this.targetDirectory());
       return;
     }
-    this.toggleExpandedAncestors(parent);
+    if (parent === this.root.path) {
+      this.selected = this.root.path;
+      this.render();
+      return;
+    }
+
+    // Above the tree's anchor: ask the server. It answers 403 when a --file-root stops
+    // us, and the listing otherwise, so the browser can climb to whatever it is allowed
+    // to see instead of silently refusing to move.
+    await this.rebase(parent, from.path);
+  }
+
+  /**
+   * Moves the tree's anchor to `newRoot`, keeping the directory we came from expanded
+   * and selected so the climb stays oriented.
+   */
+  private async rebase(newRoot: string, cameFrom: string): Promise<void> {
+    let listing;
+    try {
+      listing = await this.options.api.list(newRoot);
+    } catch (error) {
+      this.notify(errorText(error), "error");
+      return;
+    }
+
+    const previous = this.root;
+    this.nodeByPath.clear();
+    this.root = {
+      path: newRoot,
+      name: newRoot,
+      kind: "dir",
+      depth: 0,
+      entry: null,
+      expanded: true,
+      children: null,
+      loading: false,
+      error: null,
+    };
+    this.nodeByPath.set(this.root.path, this.root);
+    this.root.children = listing.entries
+      .filter((entry) => entry.path !== null)
+      .map((entry) => nodeFromEntry(entry, 1));
+
+    // Carry over what was already loaded, so expanding a directory again does not
+    // refetch it and the user keeps their place.
+    const carried = this.root.children.find((child) => child.path === previous.path);
+    if (carried && previous.path === cameFrom) {
+      carried.children = previous.children;
+      carried.expanded = true;
+      this.reindex(carried, 1);
+    } else {
+      for (const child of this.root.children) this.reindex(child, 1);
+    }
+
+    // Select the directory we moved into, not the one we came from: "up" should leave
+    // the selection on the parent so the next press climbs another level.
+    this.selected = this.root.path;
     this.render();
+    this.scrollIntoView(this.selected ?? this.root.path);
+    this.options.onPathChange?.(this.targetDirectory());
+  }
+
+  /** Re-registers a subtree after the anchor moved, fixing depths and lookups. */
+  private reindex(node: TreeNode, depth: number): void {
+    node.depth = depth;
+    this.nodeByPath.set(node.path, node);
+    for (const child of node.children ?? []) this.reindex(child, depth + 1);
   }
 
   private toggleExpandedAncestors(path: string): void {
@@ -437,6 +516,7 @@ export class FileTree {
   }
 
   private render(): void {
+    this.renderQueued = false;
     const rows = this.visibleNodes();
     const scrollTop = this.list.scrollTop;
     const height = this.list.clientHeight || 400;
@@ -520,16 +600,29 @@ export class FileTree {
     return row;
   }
 
+  /** Coalesces scroll-driven repaints into one per frame. */
+  private scheduleRender(): void {
+    if (this.renderQueued) return;
+    this.renderQueued = true;
+    requestAnimationFrame(() => {
+      if (this.renderQueued) this.render();
+    });
+  }
+
   private scrollIntoView(path: string): void {
     const rows = this.visibleNodes();
     const index = rows.findIndex((node) => node.path === path);
     if (index < 0) return;
     const top = (index + 1) * ROW_HEIGHT;
     const bottom = top + ROW_HEIGHT;
-    if (top < this.list.scrollTop) this.list.scrollTop = top;
-    else if (bottom > this.list.scrollTop + this.list.clientHeight) {
+    const before = this.list.scrollTop;
+    if (top < before) this.list.scrollTop = top;
+    else if (bottom > before + this.list.clientHeight) {
       this.list.scrollTop = bottom - this.list.clientHeight;
     }
+    // The row is often outside the current window, so scrolling alone would leave the
+    // selection unrendered until the next scroll event.
+    if (this.list.scrollTop !== before) this.render();
   }
 
   private showContextMenu(path: string, x: number, y: number): void {
