@@ -6,7 +6,7 @@ bundled by Vite, so they end up inside the single binary.
 
 | File | Used for |
 | --- | --- |
-| `folder-interface.svg` | the "parent directory" toolbar button |
+| `folder-element.svg` | the "parent directory" toolbar button |
 | `folder-update.svg` | the "refresh" toolbar button |
 | `folder-controller.svg` | the "show hidden files" toggle |
 | `folder-include.svg` | the "new folder" action |

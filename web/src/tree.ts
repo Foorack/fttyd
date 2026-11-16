@@ -17,7 +17,7 @@ import lockedFolderIcon from "./icons/folder-admin.svg?url";
 import folderIcon from "./icons/folder-base.svg?url";
 import hiddenIcon from "./icons/folder-controller.svg?url";
 import newFolderIcon from "./icons/folder-include.svg?url";
-import parentIcon from "./icons/folder-interface.svg?url";
+import parentIcon from "./icons/folder-element.svg?url";
 import followIcon from "./icons/folder-routes.svg?url";
 import refreshIcon from "./icons/folder-update.svg?url";
 import uploadIcon from "./icons/folder-upload.svg?url";
