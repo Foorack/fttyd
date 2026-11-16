@@ -13,10 +13,14 @@ cargo build --release          # one binary, glibc
 
 The frontend is built with [bun](https://bun.sh) (or any `npm`) by `build.rs` on the first build and embedded, so the result has no runtime asset directory and no network dependencies. `build.rs` compiles it into `web/dist`, copies that into `OUT_DIR`, and `rust-embed` reads it from there — so the build never writes outside `OUT_DIR`, which is what `cargo publish` requires.
 
-**From crates.io.** The published crate ships the built bundle, so `cargo install fttyd` compiles it without needing bun or a network. Publishing therefore means building the bundle first:
+**From crates.io.** The published crate ships the built bundle, so `cargo install fttyd` compiles it without needing bun or a network.
+
+**Publishing** runs from [`.github/workflows/publish.yml`](.github/workflows/publish.yml) on a `v*` tag, using crates.io trusted publishing: the job asks GitHub for an OIDC token, exchanges it for a 30-minute crates.io token, and no API token is stored in the repository. The workflow builds the bundle, checks the tag against `Cargo.toml`, runs the tests, and publishes with `--allow-dirty` because `web/dist` is generated.
+
+Trusted publishing only works for a crate that already exists, so the very first version needs a token, after which the crate's Settings → Trusted Publishing must name this repository, this workflow file and the `release` environment. Locally:
 
 ```sh
-(cd web && bun run build) && cargo publish
+(cd web && bun run build) && cargo publish --allow-dirty
 ```
 
 **Static builds.** The only non-Rust dependency is a C compiler that targets musl, because `ring` (rustls's crypto backend) assembles C. On Debian/Ubuntu:
