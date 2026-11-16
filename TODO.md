@@ -67,6 +67,9 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
   - [x] keyboard navigation, locked entries, row windowing for large directories
   - [x] windowing repaints on scroll and on `scrollIntoView`, so rows below the fold
         exist before you can click them (E2E: 300-entry directory)
+  - [x] every row a rebase reveals is registered for clicks, menus and toolbar actions,
+        and a rebase resets the viewport (E2E: `rows a climb revealed are usable`,
+        `a rebase under a scrolled list still renders rows`)
   - [x] climbs above the server's working directory by asking the API for the parent, then
         rebasing the tree root in place (one keypress per level, expansion preserved)
   - [x] a confined `--file-root` stops the climb at the boundary and says why (E2E)
@@ -108,7 +111,9 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
   - [x] `cargo clippy -D warnings` for all targets
   - [x] frontend typecheck + production build
   - [x] `cargo test --locked`
-- [x] `scripts/check-authors.sh` with 15 self-checks (`scripts/test-check-authors.sh`)
+- [x] `scripts/check-authors.sh` with 21 self-checks (`scripts/test-check-authors.sh`)
+- [x] `scripts/ci-author-check.sh` picks the range per event: deleted refs check nothing,
+      empty ranges (tag pushes) are a no-op, new or rewritten histories inspect everything
 - [x] Optional pre-commit guard: `.githooks/commit-msg` + `core.hooksPath`
 - [ ] Playwright and docker suites in CI (need a browser download and privileges)
 

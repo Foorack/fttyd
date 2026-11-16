@@ -102,6 +102,35 @@ test("readonly sessions hide the open-terminal action", async ({ page }) => {
   }
 });
 
+test("following re-anchors the tree when the shell leaves it", async ({ page }) => {
+  const fixture = makeFixture("follow-reanchor");
+  const server = await startServer([
+    "-W",
+    "-w",
+    `${fixture.root}/sub`,
+    "--file-root",
+    "/",
+    "bash",
+    "--norc",
+    "--noprofile",
+  ]);
+  try {
+    await page.goto(server.baseURL);
+    const rootName = page.locator(".root-row .row-name");
+    await expect(rootName).toHaveText(`${fixture.root}/sub`);
+
+    // `/` is above the tree's anchor, so following it has to move the anchor rather
+    // than reveal a path that does not exist in the loaded tree.
+    await page.locator(".xterm").click();
+    await page.keyboard.type("cd /\n");
+    await expect(rootName).toHaveText("/");
+    await expect(page.getByTestId("follow")).toHaveClass(/active/);
+  } finally {
+    await server.stop();
+    fixture.cleanup();
+  }
+});
+
 test("following returns to the shell after the tree climbed away", async ({ page }) => {
   const fixture = makeFixture("follow-climb");
   const server = await startServer([
@@ -116,14 +145,14 @@ test("following returns to the shell after the tree climbed away", async ({ page
   ]);
   try {
     await page.goto(server.baseURL);
-    const rootRow = page.locator(".root-row");
-    await expect(rootRow).toContainText(`${fixture.root}/sub`);
+    const rootName = page.locator(".root-row .row-name");
+    await expect(rootName).toHaveText(`${fixture.root}/sub`);
 
     // Climb past the shell's directory: the tree now shows an ancestor listing.
     await page.getByTestId("up").click();
-    await expect(rootRow).toContainText(fixture.root);
+    await expect(rootName).toHaveText(fixture.root);
     await page.getByTestId("up").click();
-    await expect(rootRow).not.toContainText(fixture.root);
+    await expect(rootName).toHaveText(path.dirname(fixture.root));
     await expect(page.getByTestId("follow")).not.toHaveClass(/active/);
 
     // Re-enabling follow anchors the tree on the shell again.

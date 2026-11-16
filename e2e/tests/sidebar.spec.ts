@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
@@ -373,17 +381,66 @@ test("the tree climbs above the directory the server started in", async ({ page 
   ]);
   try {
     await page.goto(server.baseURL);
-    const rootRow = page.locator(".root-row");
-    await expect(rootRow).toContainText(`${fixture.root}/sub`);
+    // `toHaveText` on the name, not `toContainText`: the initial text already contains
+    // the first expected value, so a substring match would not wait for the rebase.
+    const rootName = page.locator(".root-row .row-name");
+    await expect(rootName).toHaveText(`${fixture.root}/sub`);
 
     await page.getByTestId("up").click();
-    await expect(rootRow).toContainText(fixture.root);
+    await expect(rootName).toHaveText(fixture.root);
 
     await page.getByTestId("up").click();
-    await expect(rootRow).not.toContainText(fixture.root);
+    await expect(rootName).toHaveText(path.dirname(fixture.root));
 
     // Navigating by hand pins the tree, like clicking a row does.
     await expect(page.getByTestId("follow")).not.toHaveClass(/active/);
+  } finally {
+    await server.stop();
+    fixture.cleanup();
+  }
+});
+
+test("rows a climb revealed are usable", async ({ page }) => {
+  const fixture = makeFixture("climb-rows");
+  mkdirSync(path.join(fixture.root, "sibling"));
+  writeFileSync(path.join(fixture.root, "sibling", "inner.txt"), "x");
+  const server = await startServer([
+    "-W",
+    "-w",
+    `${fixture.root}/sub`,
+    "--file-root",
+    "/",
+    "bash",
+    "--norc",
+    "--noprofile",
+  ]);
+  try {
+    await page.goto(server.baseURL);
+    const rootName = page.locator(".root-row .row-name");
+    await expect(rootName).toHaveText(`${fixture.root}/sub`);
+
+    await page.getByTestId("up").click();
+    await expect(rootName).toHaveText(fixture.root);
+
+    // `sibling/` only exists in the listing the climb fetched, so it is the row the old
+    // anchor never knew about.
+    const sibling = page.locator(".file-row[data-kind=dir]", { hasText: "sibling/" });
+    await sibling.dblclick();
+    await expect(page.locator(".file-row", { hasText: "inner.txt" })).toBeVisible();
+
+    await sibling.click({ button: "right" });
+    await expect(page.getByTestId("download-zip")).toBeVisible();
+    // The menu is drawn over the row it belongs to, so it has to go before clicking.
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("download-zip")).toHaveCount(0);
+
+    // Toolbar actions target the selection, not the anchor the climb landed on.
+    await sibling.click();
+    await page.getByTestId("new-folder").click();
+    await page.locator(".modal-input").fill("made-here");
+    await page.locator(".modal [data-role=confirm]").click();
+    await expect(page.locator(".file-row", { hasText: "made-here/" })).toBeVisible();
+    expect(existsSync(path.join(fixture.root, "sibling", "made-here"))).toBe(true);
   } finally {
     await server.stop();
     fixture.cleanup();
@@ -409,7 +466,7 @@ test("a confined root stops the climb and says why", async ({ page }) => {
 
     await page.getByTestId("up").click();
     await expect(page.locator(".tree-status")).toContainText("outside the allowed roots");
-    await expect(rootRow).toContainText(fixture.root);
+    await expect(page.locator(".root-row .row-name")).toHaveText(fixture.root);
   } finally {
     await server.stop();
     fixture.cleanup();
@@ -434,6 +491,53 @@ test("a long directory renders the rows you scroll to", async ({ page }) => {
     await expect(page.locator(".file-row", { hasText: "file-299.txt" })).toHaveCount(0);
     await list.evaluate((element) => element.scrollTo({ top: element.scrollHeight }));
     await expect(page.locator(".file-row", { hasText: "file-299.txt" })).toBeVisible();
+  } finally {
+    await server.stop();
+    fixture.cleanup();
+  }
+});
+
+test("a rebase under a scrolled list still renders rows", async ({ page }) => {
+  const fixture = makeFixture("rebase-scroll");
+  const many = path.join(fixture.root, "many");
+  mkdirSync(many);
+  for (let index = 0; index < 300; index += 1) {
+    writeFileSync(path.join(many, `file-${String(index).padStart(3, "0")}.txt`), "x");
+  }
+  const server = await startServer([
+    "-W",
+    "-w",
+    fixture.root,
+    "--file-root",
+    "/",
+    "bash",
+    "--norc",
+    "--noprofile",
+  ]);
+  try {
+    await page.goto(server.baseURL);
+    // Following the shell into the long directory keeps follow mode on for the next
+    // step, which is where the anchor has to move.
+    await page.locator(".xterm").click();
+    await page.keyboard.type("cd many\n");
+    await expect(page.locator(".file-row", { hasText: "file-000.txt" })).toBeVisible();
+
+    const list = page.getByTestId("file-tree");
+    await list.evaluate((element) => element.scrollTo({ top: element.scrollHeight }));
+    await expect(page.locator(".file-row", { hasText: "file-299.txt" })).toBeVisible();
+
+    // The shell leaves the tree behind, so a short listing replaces a long, scrolled one.
+    await page.locator(".xterm").click();
+    await page.keyboard.type("cd /\n");
+    await expect(page.locator(".root-row .row-name")).toHaveText("/");
+
+    // A stale scroll offset would window past the end of the new listing.
+    const state = await list.evaluate((element) => ({
+      top: element.scrollTop,
+      rows: element.querySelectorAll(".file-row").length,
+    }));
+    expect(state.top).toBe(0);
+    expect(state.rows).toBeGreaterThan(1);
   } finally {
     await server.stop();
     fixture.cleanup();

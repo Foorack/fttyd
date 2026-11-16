@@ -414,20 +414,23 @@ export class FileTree {
 
     // Carry over what was already loaded, so expanding a directory again does not
     // refetch it and the user keeps their place.
-    const carried = this.root.children.find((child) => child.path === previous.path);
-    if (carried && previous.path === cameFrom) {
+    const carried =
+      previous.path === cameFrom
+        ? this.root.children.find((child) => child.path === previous.path)
+        : undefined;
+    if (carried) {
       carried.children = previous.children;
       carried.expanded = true;
-      this.reindex(carried, 1);
-    } else {
-      for (const child of this.root.children) this.reindex(child, 1);
     }
+    // Every child needs registering, not just the carried one: rows the climb revealed
+    // are resolved through this map for clicks, expansion and context menus.
+    for (const child of this.root.children) this.reindex(child, 1);
 
     // Select the directory we moved into, not the one we came from: "up" should leave
     // the selection on the parent so the next press climbs another level.
     this.selected = this.root.path;
+    this.list.scrollTop = 0;
     this.render();
-    this.scrollIntoView(this.selected ?? this.root.path);
     this.options.onPathChange?.(this.targetDirectory());
   }
 
@@ -520,8 +523,10 @@ export class FileTree {
     const rows = this.visibleNodes();
     const scrollTop = this.list.scrollTop;
     const height = this.list.clientHeight || 400;
-    const first = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
     const last = Math.min(rows.length, Math.ceil((scrollTop + height) / ROW_HEIGHT) + OVERSCAN);
+    // Clamped to `last`: when the list shrinks under a scrolled viewport, an unclamped
+    // `first` would render an empty window (and a spacer taller than the content).
+    const first = Math.max(0, Math.min(last, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN));
 
     const fragment = document.createDocumentFragment();
     if (first > 0) {
