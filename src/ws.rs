@@ -112,7 +112,7 @@ async fn terminal_session(
         state.client_count()
     );
 
-    run_session(&cfg, control_handle, output, &mut sink, stream).await;
+    run_session(&cfg, &state, control_handle, output, &mut sink, stream).await;
 }
 
 /// Waits for the client's `{...}` control message, which carries the size and the
@@ -172,6 +172,7 @@ async fn handshake(
 
 async fn run_session(
     cfg: &crate::cli::Config,
+    state: &Arc<AppState>,
     control: PtyControl,
     mut output: PtyOutput,
     sink: &mut futures_util::stream::SplitSink<WebSocket, Message>,
@@ -194,6 +195,17 @@ async fn run_session(
     let client_gone = loop {
         tokio::select! {
             biased;
+
+            _ = state.stopped() => {
+                tracing::info!("server shutting down, closing websocket");
+                let frame = CloseFrame {
+                    code: proto::CLOSE_GOING_AWAY,
+                    reason: Utf8Bytes::from_static("server shutdown"),
+                };
+                let _ = sink.send(Message::Close(Some(frame))).await;
+                control.signal(cfg.sig_code);
+                return;
+            }
 
             _ = ping.tick() => {
                 // Drop silent peers the way ttyd's libwebsockets retry policy does.

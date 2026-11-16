@@ -138,6 +138,7 @@ The header is required because browsers attach HTTP Basic credentials to cross-s
 - **The perimeter is yours.** `-H` (trust an authenticating reverse proxy) and `-c` (HTTP Basic) behave exactly as in ttyd. Behind SSO or a VPN, `-H` also gives every file operation an audit trail: mutations log `file op: <op> <path> actor=<header value>`.
 - **Read-only by default.** `-W` is the single switch for terminal input and file mutations.
 - **The tree has the same reach as the shell.** By default it can see the whole filesystem, because the terminal next to it can too. `--file-root` (repeatable) confines it, resolving symlinks so a link cannot escape.
+- **Ctrl+C stops the server.** SIGINT/SIGTERM close every open session (websockets get a `1001` close frame, the stats event source ends) and then exit, instead of waiting for browsers to go away first.
 - **Client certificates** are enforced when `-A` is given. rustls does not implement TLS 1.0/1.1 at all, which is at least as strict as ttyd.
 - The file API runs with the server's privileges. It cannot `sudo` like an interactive shell can, so root-owned paths are listed as locked with the real error rather than failing the listing.
 

@@ -115,22 +115,36 @@ fn sample(system: &mut System, disks: &Disks) -> Snapshot {
 /// `GET /api/stats` — one event per sample, newest value first.
 pub fn stream(
     receiver: watch::Receiver<Arc<Snapshot>>,
+    stop: impl std::future::Future<Output = ()> + Send + 'static,
 ) -> Sse<impl futures_util::Stream<Item = Result<Event, std::convert::Infallible>>> {
+    Sse::new(event_stream(receiver, stop)).keep_alive(axum::response::sse::KeepAlive::default())
+}
+
+fn event_stream(
+    receiver: watch::Receiver<Arc<Snapshot>>,
+    stop: impl std::future::Future<Output = ()> + Send + 'static,
+) -> impl futures_util::Stream<Item = Result<Event, std::convert::Infallible>> {
     let pending = Some(receiver.borrow().clone());
+    let stop = Box::pin(stop);
 
-    let stream =
-        futures_util::stream::unfold((receiver, pending), |(mut receiver, pending)| async move {
+    // An event source never ends on its own, so shutdown has to end it: a live stats
+    // connection would otherwise keep the process alive after Ctrl+C.
+    futures_util::stream::unfold(
+        (receiver, pending, stop),
+        |(mut receiver, pending, mut stop)| async move {
             match pending {
-                Some(snapshot) => Some((Ok(event(&snapshot)), (receiver, None))),
-                None => {
-                    receiver.changed().await.ok()?;
-                    let snapshot = receiver.borrow_and_update().clone();
-                    Some((Ok(event(&snapshot)), (receiver, None)))
-                }
+                Some(snapshot) => Some((Ok(event(&snapshot)), (receiver, None, stop))),
+                None => tokio::select! {
+                    _ = &mut stop => None,
+                    changed = receiver.changed() => {
+                        changed.ok()?;
+                        let snapshot = receiver.borrow_and_update().clone();
+                        Some((Ok(event(&snapshot)), (receiver, None, stop)))
+                    }
+                },
             }
-        });
-
-    Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default())
+        },
+    )
 }
 
 fn event(snapshot: &Snapshot) -> Event {
@@ -142,6 +156,27 @@ fn event(snapshot: &Snapshot) -> Event {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures_util::StreamExt;
+
+    #[tokio::test]
+    async fn the_event_stream_ends_when_the_server_stops() {
+        let stats = Stats::new();
+        let (stop_tx, stop_rx) = tokio::sync::oneshot::channel::<()>();
+        let mut stream = Box::pin(event_stream(stats.subscribe(), async move {
+            let _ = stop_rx.await;
+        }));
+        assert!(
+            stream.next().await.is_some(),
+            "the primed snapshot comes first"
+        );
+
+        stop_tx.send(()).unwrap();
+        let ended = tokio::time::timeout(std::time::Duration::from_secs(2), stream.next()).await;
+        assert!(
+            matches!(ended, Ok(None)),
+            "an open event source would keep the process alive after Ctrl+C"
+        );
+    }
 
     #[tokio::test]
     async fn samples_report_plausible_values() {

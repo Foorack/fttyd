@@ -18,6 +18,8 @@ use std::path::Path;
 use std::process::ExitCode;
 use std::sync::Arc;
 
+use tokio::signal::unix::Signal;
+
 use cli::{Config, Invocation};
 
 fn main() -> ExitCode {
@@ -79,12 +81,19 @@ fn run(prog: &str, cfg: Config) -> ExitCode {
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
+/// How long a signal waits for open sessions before the process gives up on them.
+const SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs(1);
+
 async fn serve(cfg: Config) -> Result<(), BoxError> {
     let state = state::AppState::new(
         cfg,
         stats::Stats::new().spawn(std::time::Duration::from_secs(1)),
     );
     log_config(&state.cfg);
+    // Registered before binding: a signal that arrives during startup, or while the
+    // runtime is still busy, must be a clean exit rather than the default kill.
+    let signals = signals()?;
+    tokio::spawn(watch_signals(state.clone(), signals));
 
     let (listener, port) = bind(&state).await?;
     drop_privileges(&state.cfg)?;
@@ -94,25 +103,67 @@ async fn serve(cfg: Config) -> Result<(), BoxError> {
     }
 
     let app = server::router(state.clone());
-    let shutdown = shutdown_signal(state.clone());
 
     if state.cfg.ssl {
         let config = tls::server_config(&state.cfg)?;
         return match listener {
-            Listener::Tcp(listener) => tls::serve(listener, app, config, shutdown).await,
+            Listener::Tcp(listener) => {
+                tls::serve(listener, app, config, {
+                    let state = state.clone();
+                    async move { state.stopped().await }
+                })
+                .await?;
+                drain_sessions(&state).await;
+                Ok(())
+            }
             Listener::Unix(_) => Err("--ssl is not supported on a UNIX socket".into()),
         };
     }
 
+    // Sessions outlive the listener, so the serve future can only finish once they have
+    // been told to stop; without the deadline a signal leaves the process running until
+    // every browser tab is closed.
+    let mut server = Box::pin(serve_until_stopped(listener, app, state.clone()));
+    tokio::select! {
+        result = &mut server => result?,
+        _ = state.stopped() => {
+            match tokio::time::timeout(SHUTDOWN_GRACE, &mut server).await {
+                Ok(result) => result?,
+                Err(_) => tracing::warn!(
+                    "sessions still open after {SHUTDOWN_GRACE:?}; exiting anyway"
+                ),
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Gives open sessions a moment to send their close frames before the runtime goes away.
+async fn drain_sessions(state: &state::AppState) {
+    let deadline = std::time::Instant::now() + SHUTDOWN_GRACE;
+    while state.client_count() > 0 && std::time::Instant::now() < deadline {
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+}
+
+async fn serve_until_stopped(
+    listener: Listener,
+    app: axum::Router,
+    state: Arc<state::AppState>,
+) -> Result<(), BoxError> {
+    let wait = {
+        let state = state.clone();
+        async move { state.stopped().await }
+    };
     match listener {
         Listener::Tcp(listener) => {
             axum::serve(listener, app)
-                .with_graceful_shutdown(shutdown)
+                .with_graceful_shutdown(wait)
                 .await?
         }
         Listener::Unix(listener) => {
             axum::serve(listener, app)
-                .with_graceful_shutdown(shutdown)
+                .with_graceful_shutdown(wait)
                 .await?
         }
     }
@@ -358,24 +409,25 @@ fn init_logging(prog: &str, debug: i32) {
         .try_init();
 }
 
-async fn shutdown_signal(state: Arc<state::AppState>) {
-    let ctrl_c = async {
-        let _ = tokio::signal::ctrl_c().await;
-    };
-    let terminate = async {
-        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
-            Ok(mut signal) => {
-                signal.recv().await;
-            }
-            Err(_) => std::future::pending::<()>().await,
-        }
-    };
+/// The signal streams for interruption and termination, registered on creation.
+fn signals() -> Result<(Signal, Signal), BoxError> {
+    use tokio::signal::unix::{SignalKind, signal};
+    Ok((
+        signal(SignalKind::interrupt())?,
+        signal(SignalKind::terminate())?,
+    ))
+}
 
+async fn watch_signals(
+    state: Arc<state::AppState>,
+    (mut interrupt, mut terminate): (Signal, Signal),
+) {
     tokio::select! {
-        _ = ctrl_c => tracing::info!("received SIGINT, shutting down"),
-        _ = terminate => tracing::info!("received SIGTERM, shutting down"),
+        _ = interrupt.recv() => tracing::info!("received SIGINT, shutting down"),
+        _ = terminate.recv() => tracing::info!("received SIGTERM, shutting down"),
         _ = state.shutdown.notified() => tracing::info!("no clients left, shutting down"),
     }
+    state.request_stop();
 }
 
 #[cfg(test)]

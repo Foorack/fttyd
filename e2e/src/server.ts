@@ -21,6 +21,8 @@ export interface RunningServer {
   baseURL: string;
   logs: string[];
   stop(): Promise<void>;
+  /** Sends a signal to the process, as the user's Ctrl+C would. */
+  signal(signal: NodeJS.Signals): void;
   /** Resolves with the exit code once the process ends. */
   exited(): Promise<number | null>;
 }
@@ -58,6 +60,9 @@ export async function startServer(args: string[]): Promise<RunningServer> {
     port,
     baseURL: `http://127.0.0.1:${port}`,
     logs,
+    signal(signal: NodeJS.Signals) {
+      child.kill(signal);
+    },
     exited() {
       return new Promise<number | null>((resolve) => {
         if (child.exitCode !== null) {

@@ -28,6 +28,8 @@ pub const CLOSE_NORMAL: u16 = 1000;
 pub const CLOSE_ABNORMAL: u16 = 1006;
 /// Policy violation: the websocket token was rejected.
 pub const CLOSE_POLICY_VIOLATION: u16 = 1008;
+/// Sent when the server itself is going away, so clients can say so instead of guessing.
+pub const CLOSE_GOING_AWAY: u16 = 1001;
 
 /// Builds a server frame: one command byte followed by the payload.
 pub fn frame(command: u8, payload: &[u8]) -> Vec<u8> {

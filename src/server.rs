@@ -225,7 +225,11 @@ async fn favicon_handler(headers: HeaderMap) -> Response {
 }
 
 async fn stats_handler(State(state): State<Arc<AppState>>) -> Response {
-    crate::stats::stream(state.stats.subscribe()).into_response()
+    let stop = {
+        let state = state.clone();
+        async move { state.stopped().await }
+    };
+    crate::stats::stream(state.stats.subscribe(), stop).into_response()
 }
 
 async fn not_found() -> Response {

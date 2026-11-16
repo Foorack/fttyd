@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use tokio::sync::Notify;
+use tokio::sync::{Notify, watch};
 
 use crate::cli::Config;
 use crate::stats::Stats;
@@ -14,6 +14,8 @@ pub struct AppState {
     clients: AtomicUsize,
     /// Signalled when `--once`/`--exit-no-conn` want the server to stop.
     pub shutdown: Notify,
+    /// Set once a signal or a stop request means nothing new may start.
+    stop: watch::Sender<bool>,
 }
 
 impl AppState {
@@ -23,7 +25,23 @@ impl AppState {
             stats,
             clients: AtomicUsize::new(0),
             shutdown: Notify::new(),
+            stop: watch::channel(false).0,
         })
+    }
+
+    /// Asks every in-flight session to finish: signal handlers and shutdown both use it.
+    pub fn request_stop(&self) {
+        // `send_replace` records the value even when nothing is watching yet.
+        self.stop.send_replace(true);
+    }
+
+    /// Resolves as soon as a stop has been requested, including before the call.
+    pub async fn stopped(&self) {
+        let mut receiver = self.stop.subscribe();
+        if *receiver.borrow() {
+            return;
+        }
+        let _ = receiver.changed().await;
     }
 
     pub fn client_count(&self) -> usize {

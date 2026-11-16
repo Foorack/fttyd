@@ -109,6 +109,12 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
 - [x] Numeric values beside every gauge (no colour-only encoding), visible focus outlines
 - [ ] Full accessibility audit
 
+- [x] SIGINT/SIGTERM exit even with sessions open: websockets get `1001`, the stats
+      event source ends, and a 1 s deadline stops waiting (`e2e/tests/shutdown.spec.ts`,
+      unit: `stats::tests::the_event_stream_ends_when_the_server_stops`)
+- [x] `-t rendererType="dom"` is honoured even though preferences arrive after the
+      terminal is built (E2E)
+
 ## CI
 
 - [x] `.github/workflows/ci.yml` on every push and pull request
