@@ -32,23 +32,13 @@ jobs:
 
       - name: Reject AI attribution
         env:
+          # Picks the range for this event; see scripts/ci-author-check.sh for the rules.
           EVENT_NAME: ${{ github.event_name }}
           PUSH_BEFORE: ${{ github.event.before }}
           PUSH_AFTER: ${{ github.event.after }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          zero=0000000000000000000000000000000000000000
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            ./scripts/check-authors.sh "${PR_BASE}..${PR_HEAD}"
-          elif [[ -n "${PUSH_BEFORE:-}" && "$PUSH_BEFORE" != "$zero" ]] \
-            && git cat-file -e "${PUSH_BEFORE}^{commit}" 2>/dev/null; then
-            ./scripts/check-authors.sh "${PUSH_BEFORE}..${PUSH_AFTER}"
-          else
-            # First push to a branch, or a rewritten history: inspect everything.
-            ./scripts/check-authors.sh
-          fi
+        run: ./scripts/ci-author-check.sh
 
   fmt:
     name: cargo fmt

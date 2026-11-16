@@ -96,10 +96,19 @@ main() {
     *)
       local range="$1"
       local commits
+      # A range whose endpoints do not exist is a mistake worth failing on, but an
+      # empty range (a tag push, a force push to the same commit) legitimately has
+      # nothing to inspect.
+      local left="${range%%..*}" right="${range#*..}"
+      if [[ "$range" != *..* ]] || ! git cat-file -e "${left:-HEAD}^{commit}" 2>/dev/null \
+        || ! git cat-file -e "${right:-HEAD}^{commit}" 2>/dev/null; then
+        echo "error: '$range' is not a resolvable commit range" >&2
+        exit 2
+      fi
       commits="$(git rev-list "$range" 2>/dev/null)"
       if [[ -z "$commits" ]]; then
-        echo "error: '$range' matches no commits" >&2
-        exit 2
+        echo "no commits in '$range'; nothing to check"
+        exit 0
       fi
       while IFS= read -r sha; do check_commit "$sha"; done <<< "$commits"
       ;;

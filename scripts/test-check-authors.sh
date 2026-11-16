@@ -118,6 +118,54 @@ else
 fi
 rm -rf "$dir"
 
+# The CI range selection (scripts/ci-author-check.sh) decides what a workflow run
+# inspects; a deleted branch must be a no-op rather than an unresolvable range.
+range_script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ci-author-check.sh"
+zero=0000000000000000000000000000000000000000
+
+run_ci() { # run_ci <dir> <expected exit> <description> [env assignments...]
+  local dir="$1" want="$2" description="$3"
+  shift 3
+  local got
+  if (cd "$dir" && env "$@" "$range_script" >/dev/null 2>&1); then got=0; else got=$?; fi
+  if [[ "$got" == "$want" ]]; then
+    echo "ok: $description"
+  else
+    echo "FAIL: $description (expected exit $want, got $got)"
+    failures=$((failures + 1))
+  fi
+}
+
+dir="$(new_repo)"; commit "$dir" "Add the sidebar"
+run_ci "$dir" 0 "deleted branch checks nothing" \
+  EVENT_NAME=push PUSH_BEFORE="$(git -C "$dir" rev-parse HEAD)" PUSH_AFTER="$zero"
+
+dir="$(new_repo)"; commit "$dir" "Add the sidebar"
+run_ci "$dir" 0 "push range of honest commits" \
+  EVENT_NAME=push PUSH_BEFORE="$(git -C "$dir" rev-parse HEAD)" PUSH_AFTER="$(git -C "$dir" rev-parse HEAD)"
+
+dir="$(new_repo)"; commit "$dir" "Add the sidebar"
+commit "$dir" "$(printf 'Wire the sidebar\n\nCo-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>')"
+run_ci "$dir" 1 "push range containing attribution" \
+  EVENT_NAME=push PUSH_BEFORE="$(git -C "$dir" rev-parse HEAD~1)" PUSH_AFTER="$(git -C "$dir" rev-parse HEAD)"
+run_ci "$dir" 1 "first push inspects the whole history" \
+  EVENT_NAME=push PUSH_BEFORE="$zero" PUSH_AFTER="$(git -C "$dir" rev-parse HEAD)"
+rm -rf "$dir"
+
+dir="$(new_repo)"; commit "$dir" "Add the sidebar"
+if (cd "$dir" && "$script" "0000000..HEAD" >/dev/null 2>&1); then
+  echo "FAIL: an unresolvable range should be an error"
+  failures=$((failures + 1))
+else
+  echo "ok: unresolvable range is an error"
+fi
+rm -rf "$dir"
+
+dir="$(new_repo)"; commit "$dir" "Add the sidebar"
+run_ci "$dir" 0 "pull request range of honest commits" \
+  EVENT_NAME=pull_request PR_BASE="$(git -C "$dir" rev-parse HEAD)" PR_HEAD="$(git -C "$dir" rev-parse HEAD)"
+rm -rf "$dir"
+
 echo
 if [[ "$failures" -ne 0 ]]; then
   echo "$failures check(s) failed"
