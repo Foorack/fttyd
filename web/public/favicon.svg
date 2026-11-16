@@ -1,14 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="fttyd">
-  <!-- The Material Icon Theme PowerShell glyph, recoloured: the badge is a blue-to-cyan
-       gradient and the prompt is white instead of the theme's single flat colour. -->
+  <!-- Original artwork, no third-party logo: a dark slate tile with an amber-to-orange
+       prompt, sized so the chevron and the bar still read at 16px. -->
   <defs>
-    <linearGradient id="badge" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0b4f97"/>
-      <stop offset="0.55" stop-color="#1f9bdd"/>
-      <stop offset="1" stop-color="#6fd6f7"/>
+    <linearGradient id="tile" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#222c38"/>
+      <stop offset="1" stop-color="#080d13"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+    <linearGradient id="prompt" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#f97316"/>
     </linearGradient>
   </defs>
-  <path fill="url(#badge)" d="M29.07 6H7.677A1.535 1.535 0 0 0 6.24 7.113l-4.2 17.774A.852.852 0 0 0 2.93 26h21.393a1.535 1.535 0 0 0 1.436-1.113L29.96 7.112A.852.852 0 0 0 29.07 6"/>
-  <path fill="#ffffff" d="M8.626 23.797a1.4 1.4 0 0 1-1.814-.31l-.007-.009a1.075 1.075 0 0 1 .315-1.599l9.6-6.061-6.102-5.852-.01-.01a1.068 1.068 0 0 1 .084-1.625l.037-.03a1.38 1.38 0 0 1 1.8.07l7.233 6.957a1.1 1.1 0 0 1 .236.739 1.08 1.08 0 0 1-.412.79c-.074.04-.146.119-10.951 6.935Z"/>
-  <path fill="#ffffff" d="M24 22.94A1.135 1.135 0 0 1 22.803 24h-5.634a1.061 1.061 0 1 1 .001-2.112h5.633A1.134 1.134 0 0 1 24 22.938Z"/>
+  <rect x="1" y="1" width="30" height="30" rx="8" fill="url(#tile)"/>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="none" stroke="url(#rim)"/>
+  <path d="M8.5 10.5 15.5 16.5 8.5 22.5" fill="none" stroke="url(#prompt)" stroke-width="3.4"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="18" y="19.2" width="8" height="3.4" rx="1.7" fill="url(#prompt)"/>
 </svg>

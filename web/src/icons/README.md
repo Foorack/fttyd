@@ -16,5 +16,5 @@ bundled by Vite, so they end up inside the single binary.
 | `folder-admin.svg` | a directory that cannot be opened |
 | `document.svg` | a file or symlink in the tree |
 
-`web/public/favicon.svg` is derived from this set's `powershell.svg`: the badge is filled with a
-blue-to-cyan gradient and the prompt is drawn white, where the original is one flat colour.
+`web/public/favicon.svg` is not from this set: it is original artwork, a dark slate tile with an
+amber-to-orange `>_` prompt, drawn to stay legible at 16px and to avoid resembling any vendor logo.

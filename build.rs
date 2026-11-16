@@ -4,6 +4,7 @@ use std::time::SystemTime;
 
 fn main() {
     println!("cargo:rerun-if-changed=web/src");
+    println!("cargo:rerun-if-changed=web/public");
     println!("cargo:rerun-if-changed=web/index.html");
     println!("cargo:rerun-if-changed=web/package.json");
     println!("cargo:rerun-if-changed=web/vite.config.ts");
@@ -59,6 +60,7 @@ fn needs_build(dist_index: &Path) -> bool {
     };
     newest_mtime(Path::new("web/src"))
         .into_iter()
+        .chain(newest_mtime(Path::new("web/public")))
         .chain(source_mtime("web/index.html"))
         .chain(source_mtime("web/package.json"))
         .chain(source_mtime("web/vite.config.ts"))

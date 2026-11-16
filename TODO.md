@@ -84,8 +84,9 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
 - [x] CPU / RAM / root disk gauges with numeric percentages
 - [x] `1fr / 4px / sidebar` grid with the terminal at ~3/4, draggable splitter persisted
 - [x] Mobile drawer below 900px (E2E)
-- [x] Favicon: Material's PowerShell badges recoloured to a blue/cyan gradient, served
-      from `/favicon.svg` with an ETag (unit: `server::tests::serves_the_favicon`)
+- [x] Favicon: original artwork (dark slate tile, amber-to-orange prompt), served from `/favicon.svg`
+      with an ETag (unit: `server::tests::serves_the_favicon`); `build.rs` watches
+      `web/public` so replacing it actually rebuilds the bundle
 
 ## 5. Mutations (`-W` only)
 
