@@ -22,6 +22,8 @@ export interface TreeOptions {
   writable: boolean;
   root: string;
   onPathChange?: (path: string) => void;
+  /** Types `cd` into the attached terminal. */
+  onOpenTerminal?: (path: string) => void;
 }
 
 interface TreeNode {
@@ -58,6 +60,9 @@ export class FileTree {
   private root: TreeNode;
   private selected: string | null = null;
   private showHidden = false;
+  private followEnabled = true;
+  private lastShellCwd: string | null = null;
+  private followButton: HTMLButtonElement | null = null;
 
   constructor(
     container: HTMLElement,
@@ -111,6 +116,56 @@ export class FileTree {
     return parentPath(node.path) ?? this.root.path;
   }
 
+  /** Called when the server reports a new shell working directory. */
+  async follow(path: string): Promise<void> {
+    this.lastShellCwd = path;
+    if (!this.followEnabled) return;
+    if (this.selected === path) return;
+    const node = await this.reveal(path);
+    if (!node) return;
+    this.selected = node.path;
+    this.render();
+    this.scrollIntoView(node.path);
+    this.options.onPathChange?.(this.targetDirectory());
+  }
+
+  /** Re-enables following and jumps to the shell's directory. */
+  async resumeFollowing(): Promise<void> {
+    this.followEnabled = true;
+    this.paintFollowButton();
+    if (this.lastShellCwd) await this.follow(this.lastShellCwd);
+    this.paintSelection();
+  }
+
+  private disableFollowing(): void {
+    if (!this.followEnabled) return;
+    this.followEnabled = false;
+    this.paintFollowButton();
+  }
+
+  /** Expands every ancestor of `path` and returns the node itself when reachable. */
+  private async reveal(path: string): Promise<TreeNode | null> {
+    if (path !== this.root.path && !path.startsWith(`${this.root.path.replace(/\/+$/, "")}/`)) {
+      return null;
+    }
+    const suffix = this.root.path === "/" ? path.slice(1) : path.slice(this.root.path.length + 1);
+    const parts = suffix.split("/").filter(Boolean);
+    let current = this.root;
+    for (const part of parts) {
+      if (current.children === null) await this.loadChildren(current);
+      const child = current.children?.find((candidate) => candidate.name === part);
+      if (!child) return current;
+      if (child.kind !== "dir") return child;
+      child.expanded = true;
+      current = child;
+    }
+    // Expanding the target without its children would render a caret that toggles
+    // nothing, so load them here.
+    if (current.kind === "dir" && current.children === null) await this.loadChildren(current);
+    current.expanded = true;
+    return current;
+  }
+
   async refresh(path?: string): Promise<void> {
     const target = path ?? this.root.path;
     const node = this.nodeByPath.get(target);
@@ -152,6 +207,18 @@ export class FileTree {
       this.toolbar.append(mkdir, upload);
     }
 
+    const follow = button("\u25ce", "Follow the shell's working directory", () => {
+      if (this.followEnabled) {
+        this.disableFollowing();
+      } else {
+        void this.resumeFollowing();
+      }
+    });
+    follow.dataset.testid = "follow";
+    this.followButton = follow;
+    this.paintFollowButton();
+    this.toolbar.append(follow);
+
     const spacer = document.createElement("span");
     spacer.className = "tree-toolbar-spacer";
     this.toolbar.appendChild(spacer);
@@ -170,6 +237,7 @@ export class FileTree {
       // Repainting the selection in place (instead of rebuilding the list) keeps the
       // element under the pointer alive, which is what makes double-click work.
       this.selected = path;
+      this.disableFollowing();
       this.paintSelection();
       this.options.onPathChange?.(this.targetDirectory());
     });
@@ -218,6 +286,7 @@ export class FileTree {
     if (paths.length === 0) return;
     const index = this.selected ? paths.indexOf(this.selected) : -1;
     const move = (delta: number) => {
+      this.disableFollowing();
       const next = Math.max(0, Math.min(paths.length - 1, index + delta));
       this.selected = paths[next];
       this.scrollIntoView(this.selected);
@@ -348,6 +417,14 @@ export class FileTree {
   }
 
   /** Updates the selection highlight without touching the row structure. */
+  private paintFollowButton(): void {
+    if (!this.followButton) return;
+    this.followButton.classList.toggle("active", this.followEnabled);
+    this.followButton.title = this.followEnabled
+      ? "Following the shell's working directory (click to pin)"
+      : "Pinned; click to follow the shell again";
+  }
+
   private paintSelection(): void {
     for (const row of this.list.querySelectorAll<HTMLElement>(".file-row")) {
       row.classList.toggle("selected", row.dataset.path !== undefined && row.dataset.path === this.selected);
@@ -475,6 +552,10 @@ export class FileTree {
       item("Download as tar.gz", () => this.download(node, "tar.gz"), "download-targz");
     } else {
       item("Download", () => this.download(node, "file"), "download-file");
+    }
+
+    if (this.options.onOpenTerminal && this.options.writable && node.kind === "dir") {
+      item("Open terminal here", () => this.options.onOpenTerminal?.(node.path), "open-terminal");
     }
 
     if (this.options.writable) {

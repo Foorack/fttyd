@@ -41,9 +41,10 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
   - [x] `-U user:group` socket ownership
   - [x] `-6` IPv6 bind
 - [x] Privileges: `-u`/`-g` after bind, `setgroups` cleared, non-root rejected up front
-- [ ] TLS
-  - [ ] `-S`/`-C`/`-K` via rustls, TLS 1.2 minimum
-  - [ ] `-A` client certificate verification
+- [x] TLS
+  - [x] `-S`/`-C`/`-K` via rustls (no TLS 1.0/1.1 support at all)
+  - [x] `-A` client certificate verification (unit: `tls::tests`, incl. rejection without a cert)
+  - [x] wss works through the same listener
 - [ ] `-B` browser launch covered by a test
 - [ ] `--help` diffed against ttyd's text
 
@@ -86,8 +87,9 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
 
 ## 6. Sync and polish
 
-- [ ] Tree follows shell cwd (OSC 7, `/proc/<pid>/cwd` fallback)
-- [ ] "Open terminal here", resync control
+- [x] Tree follows shell cwd (`/proc/<pid>/cwd` poll pushed over the websocket)
+- [x] Pinning on manual navigation, "follow" toggle to resync (E2E)
+- [x] "Open terminal here" types `cd` into the attached shell (E2E)
 - [x] Mobile drawer
 - [ ] Accessibility pass on gauges and tree
 

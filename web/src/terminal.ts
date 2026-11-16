@@ -15,6 +15,11 @@ const CMD_INPUT = 0x30;
 const CMD_RESIZE = 0x31;
 const CMD_PAUSE = 0x32;
 const CMD_RESUME = 0x33;
+/**
+ * fttyd extension: the child's working directory. Same byte as the client-sent
+ * RESUME command, which is fine because the two never travel in the same direction.
+ */
+const CMD_SET_CWD = 0x33;
 
 /** Write batching thresholds, same values as ttyd's client. */
 const FLOW = { limit: 100_000, highWater: 10, lowWater: 4 };
@@ -30,6 +35,7 @@ export interface Endpoints {
 export interface TerminalViewCallbacks {
   onPreferences?: (prefs: Record<string, unknown>) => void;
   onConnectionChange?: (state: "connecting" | "open" | "closed") => void;
+  onCwd?: (path: string) => void;
 }
 
 export class TerminalView {
@@ -241,6 +247,17 @@ export class TerminalView {
         document.title = this.titleFixed || this.title;
         break;
       }
+      case CMD_SET_CWD: {
+        try {
+          const body = JSON.parse(new TextDecoder().decode(data.subarray(1))) as { path?: unknown };
+          if (typeof body.path === "string" && body.path.startsWith("/")) {
+            this.callbacks.onCwd?.(body.path);
+          }
+        } catch {
+          // A malformed cwd frame is not worth interrupting the session for.
+        }
+        break;
+      }
       case CMD_SET_PREFERENCES: {
         const text = new TextDecoder().decode(data.subarray(1));
         try {
@@ -280,6 +297,11 @@ export class TerminalView {
   private sendCommand(command: number): void {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.socket.send(new Uint8Array([command]));
+  }
+
+  /** Sends text as terminal input, used by actions such as "open terminal here". */
+  sendText(text: string): void {
+    this.sendData(text);
   }
 
   private sendData(data: string | Uint8Array): void {

@@ -18,6 +18,9 @@ pub const JSON_DATA: u8 = b'{';
 pub const OUTPUT: u8 = b'0';
 pub const SET_WINDOW_TITLE: u8 = b'1';
 pub const SET_PREFERENCES: u8 = b'2';
+/// fttyd extension: the child's working directory, so the sidebar can follow it.
+/// ttyd's client ignores unknown commands, so this stays protocol compatible.
+pub const SET_CWD: u8 = b'3';
 
 /// Normal closure: the child exited with status 0.
 pub const CLOSE_NORMAL: u16 = 1000;
@@ -103,6 +106,12 @@ impl ControlMessage {
     }
 }
 
+/// Builds the `3{"path": ...}` frame for the sidebar.
+pub fn cwd_frame(path: &str) -> Vec<u8> {
+    let payload = serde_json::json!({ "path": path }).to_string();
+    frame(SET_CWD, payload.as_bytes())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -141,6 +150,13 @@ mod tests {
     fn control_message_without_token() {
         let msg = ControlMessage::parse(br#"{"columns":10,"rows":5}"#).unwrap();
         assert!(msg.auth_token.is_none());
+    }
+
+    #[test]
+    fn cwd_frame_carries_json() {
+        let frame = cwd_frame("/tmp/here");
+        assert_eq!(frame[0], SET_CWD);
+        assert_eq!(&frame[1..], br#"{"path":"/tmp/here"}"#);
     }
 
     #[test]

@@ -93,7 +93,13 @@ window.addEventListener("keydown", (event) => {
 
 // The terminal connects first: it is the primary surface and never depends on the
 // sidebar being available.
-const view = new TerminalView(terminalHost, defaultSettings(), endpoints);
+let tree: FileTree | null = null;
+const view = new TerminalView(terminalHost, defaultSettings(), endpoints, {
+  onCwd: (path) => {
+    // Follow the shell unless the user pinned the tree by navigating.
+    void tree?.follow(path);
+  },
+});
 window.term = Object.assign(view.term, { fit: () => view.fit() });
 void view.start();
 
@@ -126,7 +132,7 @@ async function startSidebar(): Promise<void> {
   const root = info.path ?? "/";
   currentPath = root;
 
-  const tree = new FileTree(treeHost, {
+  const fileTree = new FileTree(treeHost, {
     api,
     writable: info.writable,
     root,
@@ -134,16 +140,26 @@ async function startSidebar(): Promise<void> {
       currentPath = path;
       renderGauges();
     },
+    onOpenTerminal: (path) => {
+      if (!info.writable) return;
+      view.sendText(`cd -- ${shellQuote(path)}\n`);
+    },
   });
-  await tree.start();
-  currentPath = tree.targetDirectory();
+  tree = fileTree;
+  await fileTree.start();
+  currentPath = fileTree.targetDirectory();
   renderGauges();
   treeHost.dataset.writable = String(info.writable);
 
   window.fttyd = {
-    refresh: () => tree.refresh(),
-    targetDirectory: () => tree.targetDirectory(),
+    refresh: () => fileTree.refresh(),
+    targetDirectory: () => fileTree.targetDirectory(),
   };
+}
+
+/** POSIX single-quote escaping for a path typed into a shell. */
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 startSidebar().catch((error: unknown) => {

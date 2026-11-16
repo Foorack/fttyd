@@ -23,6 +23,8 @@ const EXIT_GRACE: Duration = Duration::from_secs(5);
 const DRAIN_GRACE: Duration = Duration::from_millis(200);
 /// ttyd hangs up on a client that has been silent for `interval + 7` seconds.
 const HANGUP_SLACK_SECS: u64 = 7;
+/// How often the child's working directory is checked for the sidebar.
+const CWD_POLL_INTERVAL: Duration = Duration::from_millis(1000);
 
 pub async fn ws_handler(
     State(state): State<Arc<AppState>>,
@@ -171,6 +173,9 @@ async fn run_session(
 
     let mut paused = false;
     let mut output_closed = false;
+    let mut cwd_ticker = tokio::time::interval(CWD_POLL_INTERVAL);
+    cwd_ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let mut last_cwd: Option<String> = None;
     let mut exit_status: Option<ExitStatus> = None;
     let mut last_rx = Instant::now();
     let mut exited = output.exited;
@@ -204,6 +209,17 @@ async fn run_session(
                     Some(Ok(message)) => {
                         last_rx = Instant::now();
                         if handle_client_message(cfg, &control, message, &mut paused).await.is_err() {
+                            break true;
+                        }
+                    }
+                }
+            }
+
+            _ = cwd_ticker.tick(), if !output_closed => {
+                if let Some(path) = process_cwd(control.pid()) {
+                    if last_cwd.as_deref() != Some(path.as_str()) {
+                        last_cwd = Some(path.clone());
+                        if sink.send(Message::Binary(proto::cwd_frame(&path).into())).await.is_err() {
                             break true;
                         }
                     }
@@ -286,6 +302,14 @@ async fn handle_client_message(
         other => tracing::debug!("ignored unknown message type: {other:?}"),
     }
     Ok(())
+}
+
+/// Reads the child's working directory. Works for any shell, including one that was
+/// replaced by `sudo su`, because the kernel follows the process, not the shell.
+fn process_cwd(pid: Option<u32>) -> Option<String> {
+    let pid = pid?;
+    let path = std::fs::read_link(format!("/proc/{pid}/cwd")).ok()?;
+    Some(path.to_string_lossy().into_owned())
 }
 
 /// Collects every `arg=` value from the websocket query string, in order, which is

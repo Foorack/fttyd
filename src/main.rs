@@ -9,6 +9,7 @@ mod pty;
 mod server;
 mod stats;
 mod state;
+mod tls;
 mod ws;
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -84,6 +85,15 @@ async fn serve(cfg: Config) -> Result<(), BoxError> {
 
     let app = server::router(state.clone());
     let shutdown = shutdown_signal(state.clone());
+
+    if state.cfg.ssl {
+        let config = tls::server_config(&state.cfg)?;
+        return match listener {
+            Listener::Tcp(listener) => tls::serve(listener, app, config, shutdown).await,
+            Listener::Unix(_) => Err("--ssl is not supported on a UNIX socket".into()),
+        };
+    }
+
     match listener {
         Listener::Tcp(listener) => {
             axum::serve(listener, app).with_graceful_shutdown(shutdown).await?
