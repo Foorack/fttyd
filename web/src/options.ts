@@ -47,6 +47,11 @@ const DEFAULT_THEME: ITheme = {
   magenta: "#cd00cd",
   cyan: "#00cdcd",
   white: "#e5e5e5",
+  // xterm draws its own scrollbar widget; without these it uses a mid grey that reads
+  // as a foreign box on a near-black terminal.
+  scrollbarSliderBackground: "#1d2a38",
+  scrollbarSliderHoverBackground: "#2c3f52",
+  scrollbarSliderActiveBackground: "#3a5168",
   brightBlack: "#7f7f7f",
   brightRed: "#ff0000",
   brightGreen: "#00ff00",
