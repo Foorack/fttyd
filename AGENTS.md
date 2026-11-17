@@ -139,7 +139,7 @@ The browser suite needs `cargo build` first, because it runs `target/debug/fttyd
 
 ## Release
 
-`0.0.2` is on crates.io. crates.io versions are immutable, so the next one is `0.0.3`.
+`0.1.0` is on crates.io. crates.io versions are immutable, so the next one is `0.1.1`.
 
 - A bump touches `Cargo.toml`, `web/package.json` and `Cargo.lock`. `--locked` fails until the lockfile is refreshed with `cargo build --offline`.
 - `.github/workflows/release.yml` runs on a `v*` tag. It stops when the tag and `Cargo.toml` disagree. It builds the two static musl binaries with `cross`, attaches them and `SHA256SUMS` to a GitHub release, and publishes with OIDC trusted publishing. No API token exists anywhere.
