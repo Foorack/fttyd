@@ -27,7 +27,7 @@ ttyd's shipped frontend bundle against this server to prove that, rather than as
 
 ## What you get
 
-| | |
+| Capability | What it does |
 |---|---|
 | **Terminal** | xterm.js with WebGL, correct resize, flow control, reconnect, `-t` client options, unicode 11, clickable links |
 | **Gauges** | CPU, memory, disk and load, sampled host-wide once a second and pushed over SSE; the numeric value sits beside every bar |
