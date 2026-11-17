@@ -153,7 +153,13 @@ async function startSidebar(): Promise<void> {
   renderGauges();
   treeHost.dataset.writable = String(info.writable);
   // Server version, not the page's: it tells you what the far end is running.
-  footer.textContent = `fttyd ${info.version}`;
+  const project = document.createElement("a");
+  project.className = "sidebar-footer-link";
+  project.href = "https://github.com/Foorack/fttyd";
+  project.target = "_blank";
+  project.rel = "noreferrer noopener";
+  project.textContent = "fttyd";
+  footer.replaceChildren(project, document.createTextNode(` ${info.version}`));
 
   window.fttyd = {
     refresh: () => fileTree.refresh(),

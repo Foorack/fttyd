@@ -371,12 +371,27 @@ button {
 }
 
 .sidebar-footer {
-  padding: 3px 10px 4px;
+  /* A line box the height of the bar centres the text; padding alone leaves 10px digits
+     visibly high, and a flex gap would swallow the space between name and version. */
+  min-height: 22px;
+  padding: 0 10px;
   border-top: 1px solid var(--border);
   color: var(--fg-dim);
   font-family: var(--mono);
   font-size: 10px;
+  line-height: 22px;
   user-select: text;
+}
+
+.sidebar-footer-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sidebar-footer-link:hover,
+.sidebar-footer-link:focus-visible {
+  color: var(--fg);
+  text-decoration: underline;
 }
 
 /* context menu */

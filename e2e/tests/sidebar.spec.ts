@@ -641,6 +641,11 @@ test("the footer names the running server's version", async ({ page, request }) 
     const info = await (await request.get(`${server.baseURL}/api/info`)).json();
     await page.goto(server.baseURL);
     await expect(page.locator(".sidebar-footer")).toHaveText(`fttyd ${info.version}`);
+    // The name links out; the version is text, so it can be selected and copied.
+    const link = page.locator(".sidebar-footer a");
+    await expect(link).toHaveText("fttyd");
+    await expect(link).toHaveAttribute("href", "https://github.com/Foorack/fttyd");
+    await expect(link).toHaveAttribute("rel", /noopener/);
   } finally {
     await close();
   }
