@@ -57,9 +57,9 @@ architecture from the [latest release](https://github.com/Foorack/fttyd/releases
 publishes a `SHA256SUMS`:
 
 ```sh
-curl -LO https://github.com/Foorack/fttyd/releases/latest/download/fttyd-0.1.0-x86_64-unknown-linux-musl.tar.gz
-tar xzf fttyd-0.1.0-x86_64-unknown-linux-musl.tar.gz
-sudo install -m755 fttyd-0.1.0-x86_64-unknown-linux-musl/fttyd /usr/local/bin/
+curl -LO https://github.com/Foorack/fttyd/releases/latest/download/fttyd-0.1.1-x86_64-unknown-linux-musl.tar.gz
+tar xzf fttyd-0.1.1-x86_64-unknown-linux-musl.tar.gz
+sudo install -m755 fttyd-0.1.1-x86_64-unknown-linux-musl/fttyd /usr/local/bin/
 ```
 
 `aarch64-unknown-linux-musl` is published the same way. That is the whole story for now: those two
