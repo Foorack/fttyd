@@ -172,6 +172,44 @@ test("uploads a file and shows it in the tree", async ({ page }) => {
   }
 });
 
+test("dialog buttons are readable on their own fill", async ({ page }) => {
+  const fixture = makeFixture("contrast");
+  mkdirSync(path.join(fixture.root, "victim"));
+  const { server, close } = await openWithFixture(fixture);
+  try {
+    await page.goto(server.baseURL);
+    await expect(page.getByTestId("file-tree")).toContainText("victim/");
+
+    // Ratio of the label against the button's own background, the way WCAG defines it.
+    const contrast = async (selector: string) =>
+      page.locator(selector).evaluate((element) => {
+        const style = getComputedStyle(element);
+        const parse = (value: string) => value.match(/\d+/g)!.slice(0, 3).map(Number);
+        const channel = (c: number) => {
+          const s = c / 255;
+          return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        };
+        const luminance = ([r, g, b]: number[]) =>
+          0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+        const foreground = luminance(parse(style.color));
+        const background = luminance(parse(style.backgroundColor));
+        const [light, dark] = [foreground, background].sort((a, b) => b - a);
+        return (light + 0.05) / (dark + 0.05);
+      });
+
+    await page.getByTestId("new-folder").click();
+    // 4.5:1 is the AA floor for body text; white on amber was 1.67:1.
+    expect(await contrast(".modal .btn.primary")).toBeGreaterThan(4.5);
+    await page.keyboard.press("Escape");
+
+    await page.locator(".file-row[data-kind=dir]", { hasText: "victim/" }).click({ button: "right" });
+    await page.getByTestId("delete").click();
+    expect(await contrast(".modal .btn.danger")).toBeGreaterThan(4.5);
+  } finally {
+    await close();
+  }
+});
+
 test("creates, renames and deletes a folder", async ({ page }) => {
   const fixture = makeFixture("mutate");
   const { server, close } = await openWithFixture(fixture);
