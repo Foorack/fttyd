@@ -11,7 +11,7 @@ the advisory unless you prefer otherwise.
 
 ## What counts as a vulnerability here
 
-`fttyd`'s own code — for example a request that escapes `--file-root`, a path that writes outside the
+`fttyd`'s own code - for example a request that escapes `--file-root`, a path that writes outside the
 target directory, a CSRF bypass on a mutating endpoint, an authentication bypass in `-c`/`-H`/`-O`, a
 crash reachable from the network, or a memory-safety problem.
 
@@ -38,7 +38,7 @@ These are documented behaviour, not bugs:
 
 Read-only is the default: without `-W`, clients cannot type into the terminal and every mutating file
 request is refused. With `-W`, every non-GET request must carry a header whose value comes from
-`/token` — a cross-origin page cannot set it, because no CORS policy is granted to approve the
+`/token` - a cross-origin page cannot set it, because no CORS policy is granted to approve the
 preflight. The file API runs with the server's privileges, TLS is rustls (no TLS 1.0/1.1 at all) and
 `-A` enforces client certificates. Behind `-H`, every mutation is logged with the authenticated
 actor as reported by your proxy.

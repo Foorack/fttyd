@@ -6,7 +6,7 @@ on the shape of it before you spend an evening on it.
 ## Build and test
 
 ```sh
-cargo build --release                # needs bun (or npm) — build.rs compiles the frontend
+cargo build --release                # needs bun (or npm) - build.rs compiles the frontend
 cargo test                           # Rust tests
 (cd e2e && bun install && bunx playwright test)   # drives the real binary in Chromium
 ./scripts/docker-tests.sh            # privileges, sockets, special files (needs docker)

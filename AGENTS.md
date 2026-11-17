@@ -139,9 +139,11 @@ The browser suite needs `cargo build` first, because it runs `target/debug/fttyd
 
 ## Release
 
-`0.1.1` is on crates.io. crates.io versions are immutable, so the next one is `0.1.2`.
+Read the current version from `Cargo.toml`; do not copy a number out of a document, because this
+file and every other one would then need editing on each release. crates.io versions are immutable:
+raise the patch for a fix, the minor for a change a user can see.
 
-- A bump touches `Cargo.toml`, `web/package.json` and `Cargo.lock`. `--locked` fails until the lockfile is refreshed with `cargo build --offline`.
+- A bump touches `Cargo.toml`, `web/package.json` and `Cargo.lock`. `--locked` fails until the lockfile is refreshed with `cargo build --offline`. Do not write the number into docs; the README's download URL is the only place that needs it, and that is deliberate so the asset link works.
 - `.github/workflows/release.yml` runs on a `v*` tag. It stops when the tag and `Cargo.toml` disagree. It builds the two static musl binaries with `cross`, attaches them and `SHA256SUMS` to a GitHub release, and publishes with OIDC trusted publishing. No API token exists anywhere.
 - The workflow name, the repository and the `release` environment must match the crates.io settings.
 - `workflow_dispatch` rehearses the pipeline with `--dry-run` and spends no version.

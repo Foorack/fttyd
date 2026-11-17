@@ -1,7 +1,7 @@
 # Architecture
 
-How the code is put together, and where to change what. The *why* — transports, security decisions,
-edge cases, the record of what was verified how — is in [PLAN.md](../PLAN.md); this file is the map.
+How the code is put together, and where to change what. The *why* - transports, security decisions,
+edge cases, the record of what was verified how - is in [PLAN.md](../PLAN.md); this file is the map.
 
 ## One process, one binary
 
@@ -66,7 +66,7 @@ fans out; per-connection sampling would burn CPU per viewer for identical number
 
 1. Row in the flag table in `cli.rs` (short, long, takes a value?), plus the field on `Config`.
 2. Handle it in the parse loop; keep `--help` output in the same format ttyd uses.
-3. If ttyd has the flag, match its default and its meaning exactly — that is what "drop-in" means.
+3. If ttyd has the flag, match its default and its meaning exactly - that is what "drop-in" means.
    A divergence is allowed only when ttyd's behaviour is a bug, and it must be added to
    [Divergences](#divergences-from-ttyd).
 4. Test it in `cli::tests` (parsing) and, if it changes behaviour, end to end.
@@ -127,12 +127,12 @@ Each of these is deliberate, and each is a case where ttyd's behaviour costs the
 | `e2e/` (Playwright) | the real binary in Chromium: terminal I/O, ttyd-client conformance, sidebar, drag-and-drop upload, downloads, mutations, CSRF, read-only, base path, auth, follow-cwd, `-B` |
 | `scripts/docker-tests.sh` | privilege dropping, socket ownership, permission errors, `/proc` and `/dev` listing, archives of special files |
 
-Two claims that are checked by hand rather than by a suite, because both need the outside world:
-`cargo install fttyd --version 0.1.1 --root …` builds from the published tarball with **no** Node
-toolchain and the installed binary serves the embedded bundle (`/`, `/favicon.svg` and the hashed JS
-all return 200), and the static release tarballs for `x86_64`/`aarch64-unknown-linux-musl` are
-`statically linked` with no `NEEDED` entries. Re-check the first one before any release that touches
-`build.rs` or the frontend.
+Two claims are checked by hand rather than by a suite, because both need the outside world. First,
+`cargo install fttyd --root "$(mktemp -d)"` builds from the published tarball with **no** Node
+toolchain, and the binary it installs serves the embedded bundle (`/`, `/favicon.svg` and the hashed
+JS all return 200). Second, the static release tarballs for `x86_64`/`aarch64-unknown-linux-musl`
+are `statically linked` with no `NEEDED` entries. Re-check the first one before any release that
+touches `build.rs` or the frontend.
 
 Run the smallest command that covers your change; `AGENTS.md` has the exact invocations and the
 mistakes worth avoiding.

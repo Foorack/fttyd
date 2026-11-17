@@ -1,6 +1,6 @@
 # Screenshots
 
-Every image here comes from the real application, driven by Playwright — no mockups, no compositing.
+Every image here comes from the real application, driven by Playwright - no mockups, no compositing.
 
 **Nothing confidential may appear in any of them.** These files are published on GitHub, so the rule
 is absolute: no real username, home directory, hostname, uptime, process table, IP address or
@@ -38,10 +38,10 @@ Keep each under ~400 KB; `convert -strip` removes metadata that is not worth shi
 Look at it. Specifically:
 
 - Search the image for your own username, hostname, home path and any domain you work for.
-- A `ps`/`htop`/`top` capture is never acceptable — it leaks other users' command lines.
+- A `ps`/`htop`/`top` capture is never acceptable - it leaks other users' command lines.
 - The `load … up N days` line under the gauges shows real uptime; a synthetic demo script is fine,
   a real one is not.
 - Check the file tree: it should be the fixture, not `/etc` or your home directory.
 
-If you find a leak after pushing, the image stays in git history until it is rewritten — so check
+If you find a leak after pushing, the image stays in git history until it is rewritten - so check
 first.
