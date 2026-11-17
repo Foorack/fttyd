@@ -76,20 +76,49 @@ test("--url-arg appends the query arguments to the command", async ({ page }) =>
   }
 });
 
-test("a custom index replaces the UI but the protocol still works", async ({ page }) => {
-  const index = `${process.cwd()}/.cache/ttyd-client.html`;
+test("a custom index replaces the UI and speaks the documented protocol", async ({ page }) => {
+  // A self-contained client rather than ttyd's bundle, so this runs everywhere: it sends
+  // the control message the protocol defines and reads the `0` output frames back. If a
+  // foreign client can drive a shell through this, `-I` is a real escape hatch.
+  const dir = mkdtempSync(path.join(tmpdir(), "fttyd-index-"));
+  const index = path.join(dir, "custom.html");
+  writeFileSync(
+    index,
+    `<!doctype html><meta charset="utf-8"><title>foreign client</title>
+<pre id="out"></pre>
+<script>
+const socket = new WebSocket(new URL("ws", location.href).href.replace(/^http/, "ws"), "tty");
+const out = document.getElementById("out");
+socket.binaryType = "arraybuffer";
+socket.onopen = () => socket.send(JSON.stringify({ columns: 100, rows: 30 }));
+socket.onmessage = (event) => {
+  const bytes = new Uint8Array(event.data);
+  if (bytes[0] === 48) out.textContent += new TextDecoder().decode(bytes.subarray(1));
+};
+window.term = {
+  send(text) {
+    const body = new TextEncoder().encode(text);
+    const frame = new Uint8Array(body.length + 1);
+    frame[0] = 48;
+    frame.set(body, 1);
+    socket.send(frame);
+  },
+};
+</script>`,
+  );
   const server = await startServer(["-W", "-I", index, "bash", "--norc", "--noprofile"]);
   try {
     await page.goto(server.baseURL);
-    await waitForConnected(page);
-    // The sidebar belongs to our UI, so a foreign index must not break anything.
-    await page.locator(".xterm").click();
-    await page.keyboard.type("echo foreign-index-ok\n");
-    await expect
-      .poll(() => screenText(page), { timeout: 15_000 })
-      .toContain("foreign-index-ok");
+    // Our sidebar belongs to our own UI, so a foreign index must not carry it.
+    await expect(page.locator(".sidebar")).toHaveCount(0);
+    await expect(page.locator("#out")).toHaveCount(1);
+
+    await page.evaluate(() => (window as { term?: { send(t: string): void } }).term?.send("echo MARK_$((1+1))\n"));
+    // MARK_2 is not in the text that was typed, so it proves the shell ran the command.
+    await expect.poll(async () => page.locator("#out").textContent(), { timeout: 15_000 }).toContain("MARK_2");
   } finally {
     await server.stop();
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 

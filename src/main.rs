@@ -135,6 +135,10 @@ async fn serve(cfg: Config) -> Result<(), BoxError> {
             }
         }
     }
+    // The listener closing does not mean the sessions have finished: give them the same
+    // grace the TLS path gets, or the runtime drops a task mid-close and the client never
+    // receives the 1001 frame.
+    drain_sessions(&state).await;
     Ok(())
 }
 
