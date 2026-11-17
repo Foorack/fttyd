@@ -98,3 +98,60 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --locked
+
+  e2e:
+    name: playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # The suite drives the real binary, so it has to be built in debug exactly as the
+      # harness expects (target/debug/fttyd).
+      - run: cargo build --locked
+      # bunx resolves `playwright` from e2e/node_modules; without the lockfile install it
+      # would download a floating version that disagrees with the locked browser build.
+      - name: Install
+        working-directory: e2e
+        run: bun install --frozen-lockfile
+      - name: Install Playwright's browser
+        working-directory: e2e
+        run: bunx playwright install --with-deps chromium
+      # ttyd's own client is only fetched for the conformance test, which skips itself
+      # when the cache is missing, so no network clone of ttyd is needed here.
+      - name: Run
+        working-directory: e2e
+        run: bunx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: e2e/test-results
+          if-no-files-found: ignore
+
+  container:
+    name: container checks
+    # The script bind-mounts a host-built binary into the container, so the container's
+    # glibc cannot be older than the one it was linked against. Both sides are pinned
+    # to the same Ubuntu release; `latest` here and `bookworm` in the image would drift
+    # apart and fail at exec with a GLIBC version error.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      FTTYD_TEST_IMAGE: ubuntu:24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --locked
+      # Needs root inside a disposable container: privilege dropping, socket ownership,
+      # permission errors and special files. The runner has docker; the disk-full check
+      # skips itself when it cannot mount a tmpfs.
+      - run: ./scripts/docker-tests.sh

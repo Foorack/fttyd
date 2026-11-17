@@ -54,9 +54,12 @@ cargo test                       # unit tests
 | `frontend typecheck` | `bun run typecheck` plus a production build of the bundle |
 | `cargo clippy` | `--all-targets` with `-D warnings` |
 | `cargo test` | the Rust unit tests |
+| `playwright` | builds the debug binary, installs chromium, runs the `e2e` suite, keeps `e2e/test-results` on failure |
+| `container checks` | `scripts/docker-tests.sh`: privilege dropping, socket ownership, permission errors, special files |
 
-The Playwright and docker suites are not in CI: one needs a browser download, the other
-privileges. Run them locally with the commands under [Build](#build).
+The browser and docker suites run there too, so a locally passing run and CI agree. Locally
+they need a browser download and docker respectively; run them with the commands under
+[Build](#build).
 
 Local equivalents:
 

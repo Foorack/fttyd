@@ -1,3 +1,6 @@
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { expect, test } from "@playwright/test";
 
 import { startServer } from "../src/server";
@@ -112,5 +115,31 @@ test("-t rendererType selects the DOM renderer mid-session", async ({ page }) =>
     await expect.poll(async () => page.locator(".xterm-rows > div").count()).toBeGreaterThan(0);
   } finally {
     await server.stop();
+  }
+});
+
+test("-B hands the URL to the system browser", async () => {
+  test.skip(process.platform !== "linux", "the stub stands in for xdg-open");
+  // A stub on PATH stands in for xdg-open: `-B` must launch it with the URL of the
+  // listening port, and the test must not open a real window on the machine.
+  const bin = mkdtempSync(path.join(tmpdir(), "fttyd-browser-"));
+  const record = path.join(bin, "opened.txt");
+  writeFileSync(
+    path.join(bin, "xdg-open"),
+    `#!/bin/sh\nprintf '%s\\n' "$1" > ${JSON.stringify(record)}\n`,
+    { mode: 0o755 },
+  );
+  const server = await startServer(["-B", "-W", "bash", "--norc", "--noprofile"], {
+    env: { PATH: `${bin}:${process.env.PATH ?? ""}` },
+  });
+  try {
+    await expect
+      .poll(async () => (existsSync(record) ? readFileSync(record, "utf8").trim() : ""), {
+        timeout: 5_000,
+      })
+      .toBe(`http://localhost:${server.port}/`);
+  } finally {
+    await server.stop();
+    rmSync(bin, { recursive: true, force: true });
   }
 });

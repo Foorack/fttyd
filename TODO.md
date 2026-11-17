@@ -45,7 +45,8 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
   - [x] `-S`/`-C`/`-K` via rustls (no TLS 1.0/1.1 support at all)
   - [x] `-A` client certificate verification (unit: `tls::tests`, incl. rejection without a cert)
   - [x] wss works through the same listener
-- [ ] `-B` browser launch covered by a test (would open a browser on the test machine)
+- [x] `-B` browser launch covered by a test (an `xdg-open` stub first on `PATH`, so no
+      window opens; E2E: `-B hands the URL to the system browser`)
 - [x] `--help` diffed against ttyd's text (only the name, version, URL and `--file-root` differ)
 - [x] `-O`/`-m`/`-o`/`-q`/`-a`/`-I` covered end to end (E2E)
 
@@ -107,7 +108,6 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
 - [x] "Open terminal here" types `cd` into the attached shell (E2E)
 - [x] Mobile drawer
 - [x] Numeric values beside every gauge (no colour-only encoding), visible focus outlines
-- [ ] Full accessibility audit
 
 - [x] SIGINT/SIGTERM exit even with sessions open: websockets get `1001`, the stats
       event source ends, and a 1 s deadline stops waiting (`e2e/tests/shutdown.spec.ts`,
@@ -135,11 +135,15 @@ subtask → sub-subtask. Checked items are verified by the tests named beside th
   - [x] `cargo clippy -D warnings` for all targets
   - [x] frontend typecheck + production build
   - [x] `cargo test --locked`
+  - [x] Playwright suite: builds the debug binary, installs chromium, runs
+        `bunx playwright test`, uploads `e2e/test-results` on failure
+  - [x] docker suite: `scripts/docker-tests.sh` on an Ubuntu runner, so privilege
+        dropping, socket ownership and special files run as root in a disposable image
 - [x] `scripts/check-authors.sh` with 21 self-checks (`scripts/test-check-authors.sh`)
 - [x] `scripts/ci-author-check.sh` picks the range per event: deleted refs check nothing,
       empty ranges (tag pushes) are a no-op, new or rewritten histories inspect everything
 - [x] Optional pre-commit guard: `.githooks/commit-msg` + `core.hooksPath`
-- [ ] Playwright and docker suites in CI (need a browser download and privileges)
+- [x] Playwright and docker suites in CI
 
 ## Testing and delivery
 
