@@ -127,5 +127,12 @@ Each of these is deliberate, and each is a case where ttyd's behaviour costs the
 | `e2e/` (Playwright) | the real binary in Chromium: terminal I/O, ttyd-client conformance, sidebar, drag-and-drop upload, downloads, mutations, CSRF, read-only, base path, auth, follow-cwd, `-B` |
 | `scripts/docker-tests.sh` | privilege dropping, socket ownership, permission errors, `/proc` and `/dev` listing, archives of special files |
 
+Two claims that are checked by hand rather than by a suite, because both need the outside world:
+`cargo install fttyd --version 0.0.2 --root …` builds from the published tarball with **no** Node
+toolchain and the installed binary serves the embedded bundle (`/`, `/favicon.svg` and the hashed JS
+all return 200), and the static release tarballs for `x86_64`/`aarch64-unknown-linux-musl` are
+`statically linked` with no `NEEDED` entries. Re-check the first one before any release that touches
+`build.rs` or the frontend.
+
 Run the smallest command that covers your change; `AGENTS.md` has the exact invocations and the
 mistakes worth avoiding.
