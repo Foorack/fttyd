@@ -53,7 +53,9 @@ sidebar.className = "pane sidebar";
 const gaugesHost = document.createElement("div");
 const treeHost = document.createElement("div");
 treeHost.className = "tree-host";
-sidebar.append(gaugesHost, treeHost);
+const footer = document.createElement("div");
+footer.className = "sidebar-footer";
+sidebar.append(gaugesHost, treeHost, footer);
 
 app.append(terminalPane, splitter, sidebar);
 
@@ -150,6 +152,8 @@ async function startSidebar(): Promise<void> {
   currentPath = fileTree.targetDirectory();
   renderGauges();
   treeHost.dataset.writable = String(info.writable);
+  // Server version, not the page's: it tells you what the far end is running.
+  footer.textContent = `fttyd ${info.version}`;
 
   window.fttyd = {
     refresh: () => fileTree.refresh(),

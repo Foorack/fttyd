@@ -106,7 +106,7 @@ button {
 
 .sidebar {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   background: var(--bg-sidebar);
   border-left: 1px solid var(--border);
 }
@@ -368,6 +368,15 @@ button {
 
 .tree-status[data-kind="error"] {
   color: var(--critical);
+}
+
+.sidebar-footer {
+  padding: 3px 10px 4px;
+  border-top: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-family: var(--mono);
+  font-size: 10px;
+  user-select: text;
 }
 
 /* context menu */

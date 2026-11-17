@@ -631,3 +631,17 @@ test("the toolbar and rows carry the theme's icons", async ({ page, request }) =
     fixture.cleanup();
   }
 });
+
+test("the footer names the running server's version", async ({ page, request }) => {
+  const fixture = makeFixture("footer");
+  const { server, close } = await openWithFixture(fixture);
+  try {
+    // The expected string comes from the server, so a hardcoded constant in the client
+    // would not pass: it has to be reading what this process reports.
+    const info = await (await request.get(`${server.baseURL}/api/info`)).json();
+    await page.goto(server.baseURL);
+    await expect(page.locator(".sidebar-footer")).toHaveText(`fttyd ${info.version}`);
+  } finally {
+    await close();
+  }
+});
