@@ -15,7 +15,7 @@ test("SIGINT stops the server even with a terminal attached", async ({ page }) =
     await expect
       .poll(() => server.exited(), { timeout: 5_000, message: "server should exit" })
       .toBe(0);
-    expect(server.logs.join("")).toContain("server shutting down, closing websocket");
+    expect(server.logs.join("")).toMatch(/session ended after .*: server shutting down/);
   } finally {
     await server.stop();
   }

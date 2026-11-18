@@ -9,9 +9,11 @@
 
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::time::Duration;
 
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use tokio::sync::{mpsc, oneshot};
+use tokio::time::timeout;
 
 use crate::proto::WindowSize;
 
@@ -173,6 +175,35 @@ pub fn spawn(spec: &SessionSpec) -> std::io::Result<(PtyControl, PtyOutput)> {
     ))
 }
 
+/// How long a child may ignore the close signal before it is killed.
+pub const KILL_GRACE: Duration = Duration::from_secs(2);
+
+/// What happened when the client left and the child was told to stop.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionEnd {
+    /// The child exited after the close signal.
+    Exited,
+    /// The child ignored the signal and had to be killed.
+    Killed,
+}
+
+/// Ends a child whose client went away: the configured signal first, then `SIGKILL`
+/// when the child is still running after [`KILL_GRACE`]. Without the escalation a
+/// process that survives `SIGHUP` keeps its PTY and threads on the server until it
+/// exits on its own, which on a long-lived server is never.
+pub async fn end_session(
+    control: &PtyControl,
+    exited: &mut oneshot::Receiver<ExitStatus>,
+    signal: i32,
+) -> SessionEnd {
+    control.signal(signal);
+    if timeout(KILL_GRACE, &mut *exited).await.is_ok() {
+        return SessionEnd::Exited;
+    }
+    control.kill();
+    SessionEnd::Killed
+}
+
 impl PtyControl {
     /// Queues bytes for the child, waiting if the child is not draining its input.
     pub async fn write(&self, data: Vec<u8>) -> bool {
@@ -203,6 +234,19 @@ impl PtyControl {
             // SAFETY: sending a signal to a pid is safe; a stale pid just fails.
             unsafe {
                 libc::kill(pid as libc::pid_t, signal);
+            }
+        }
+    }
+
+    /// Kills the child and everything it started. `portable-pty` puts the child in its
+    /// own session, so its pid is also the process group id.
+    pub fn kill(&self) {
+        if let Some(pid) = self.pid {
+            let pid = pid as libc::pid_t;
+            // SAFETY: a signal to a pid or to a group is safe; a stale id just fails.
+            let group = unsafe { libc::getpgid(pid) } == pid;
+            unsafe {
+                libc::kill(if group { -pid } else { pid }, libc::SIGKILL);
             }
         }
     }
@@ -310,6 +354,45 @@ mod tests {
         assert!(
             output.exited.await.is_ok(),
             "child should have exited after SIGKILL"
+        );
+    }
+
+    /// Reads output until the child prints `marker`, so a signal never races its setup.
+    async fn wait_for(output: &mut PtyOutput, marker: &str) {
+        let mut seen = Vec::new();
+        while !String::from_utf8_lossy(&seen).contains(marker) {
+            let chunk = output.output.recv().await.expect("child output");
+            seen.extend_from_slice(&chunk);
+        }
+    }
+
+    #[tokio::test]
+    async fn a_child_that_stops_on_the_close_signal_leaves_nothing_behind() {
+        let (control, mut output) =
+            spawn(&spec(&["/bin/sh", "-c", "echo ready; exec sleep 30"])).unwrap();
+        wait_for(&mut output, "ready").await;
+        assert_eq!(
+            end_session(&control, &mut output.exited, libc::SIGHUP).await,
+            SessionEnd::Exited
+        );
+    }
+
+    #[tokio::test]
+    async fn a_child_that_ignores_the_close_signal_is_killed() {
+        let (control, mut output) = spawn(&spec(&[
+            "/bin/sh",
+            "-c",
+            "trap '' HUP; echo ready; exec sleep 30",
+        ]))
+        .unwrap();
+        wait_for(&mut output, "ready").await;
+        assert_eq!(
+            end_session(&control, &mut output.exited, libc::SIGHUP).await,
+            SessionEnd::Killed
+        );
+        assert!(
+            timeout(Duration::from_secs(5), output.exited).await.is_ok(),
+            "the child must be reaped after the kill, or its thread outlives the session"
         );
     }
 

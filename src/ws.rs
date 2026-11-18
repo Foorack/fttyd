@@ -12,7 +12,7 @@ use tokio::time::{Instant as TokioInstant, timeout};
 
 use crate::auth;
 use crate::proto::{self, ControlMessage, WindowSize};
-use crate::pty::{ExitStatus, PtyControl, PtyOutput, SessionSpec};
+use crate::pty::{ExitStatus, PtyControl, PtyOutput, SessionEnd, SessionSpec};
 use crate::state::{AppState, AuthUser, ClientGuard};
 
 /// A client that never sends its control message is dropped after this long.
@@ -189,7 +189,8 @@ async fn run_session(
     cwd_ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     let mut last_cwd: Option<String> = None;
     let mut exit_status: Option<ExitStatus> = None;
-    let mut last_rx = Instant::now();
+    let started = Instant::now();
+    let mut last_rx = started;
     let mut exited = output.exited;
 
     let client_gone = loop {
@@ -197,7 +198,10 @@ async fn run_session(
             biased;
 
             _ = state.stopped() => {
-                tracing::info!("server shutting down, closing websocket");
+                tracing::info!(
+                    "session ended after {:?}: server shutting down",
+                    started.elapsed()
+                );
                 let frame = CloseFrame {
                     code: proto::CLOSE_GOING_AWAY,
                     reason: Utf8Bytes::from_static("server shutdown"),
@@ -210,7 +214,10 @@ async fn run_session(
             _ = ping.tick() => {
                 // Drop silent peers the way ttyd's libwebsockets retry policy does.
                 if last_rx.elapsed() > hangup_after {
-                    tracing::info!("closing websocket after {hangup_after:?} of silence");
+                    tracing::info!(
+                        "session ended after {:?}: no traffic from the client for {hangup_after:?}",
+                        started.elapsed()
+                    );
                     break true;
                 }
                 if sink.send(Message::Ping(Vec::new().into())).await.is_err() {
@@ -221,7 +228,16 @@ async fn run_session(
             message = stream.next() => {
                 match message {
                     None | Some(Err(_)) => break true,
-                    Some(Ok(Message::Close(_))) => break true,
+                    Some(Ok(Message::Close(frame))) => {
+                        if let Some(frame) = frame {
+                            tracing::info!(
+                                "client closed the websocket with code {} ({})",
+                                frame.code,
+                                frame.reason
+                            );
+                        }
+                        break true;
+                    }
                     Some(Ok(Message::Ping(payload))) => {
                         last_rx = Instant::now();
                         if sink.send(Message::Pong(payload)).await.is_err() {
@@ -268,12 +284,17 @@ async fn run_session(
     };
 
     if client_gone {
-        control.signal(cfg.sig_code);
-        tracing::info!(
-            "ws closed, signalled child {:?} with {}",
-            control.pid(),
-            crate::cli::signal_name(cfg.sig_code)
-        );
+        match crate::pty::end_session(&control, &mut exited, cfg.sig_code).await {
+            SessionEnd::Exited => tracing::info!(
+                "session ended after {:?}: client disconnected",
+                started.elapsed()
+            ),
+            SessionEnd::Killed => tracing::warn!(
+                "session ended after {:?}: client disconnected, child ignored {} and was killed",
+                started.elapsed(),
+                crate::cli::signal_name(cfg.sig_code)
+            ),
+        }
         return;
     }
 
@@ -298,7 +319,10 @@ async fn run_session(
     let code = exit_status
         .map(|status| status.close_code())
         .unwrap_or(proto::CLOSE_ABNORMAL);
-    tracing::info!("process exited, closing websocket with {code}");
+    tracing::info!(
+        "session ended after {:?}: process exited, closing websocket with {code}",
+        started.elapsed()
+    );
     let frame = CloseFrame {
         code,
         reason: Utf8Bytes::from_static(""),
