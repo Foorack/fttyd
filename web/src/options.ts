@@ -13,6 +13,8 @@ export interface ClientOptions {
   enableSixel: boolean;
   titleFixed: string;
   closeOnDisconnect: boolean;
+  /** ttyd's key for "do not reconnect by itself": a dropped session waits for Enter. */
+  disableReconnect: boolean;
   isWindows: boolean;
   unicodeVersion: string;
 }
@@ -26,6 +28,7 @@ export const DEFAULT_CLIENT_OPTIONS: ClientOptions = {
   enableSixel: false,
   titleFixed: "",
   closeOnDisconnect: false,
+  disableReconnect: false,
   isWindows: false,
   unicodeVersion: "11",
 };

@@ -220,7 +220,11 @@ export class TerminalView {
     socket.addEventListener("close", (event) => {
       this.callbacks.onConnectionChange?.("closed");
       if (this.disposed) return;
-      if (event.code !== 1000 && this.reconnectEnabled) {
+      // ttyd auto-reconnects on an abnormal close unless the operator turned that off.
+      // A reconnect always starts a new shell, so a silent one costs the session.
+      const autoReconnect =
+        event.code !== 1000 && this.reconnectEnabled && !this.settings.client.disableReconnect;
+      if (autoReconnect) {
         this.showOverlay("Reconnecting...");
         this.reconnectTimer = window.setTimeout(() => {
           void this.refreshToken().then(() => this.connect());

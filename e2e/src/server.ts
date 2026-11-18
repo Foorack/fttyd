@@ -30,16 +30,17 @@ export interface RunningServer {
 /**
  * Starts the real binary on an ephemeral port and waits for its `listening on port N`
  * line, so tests never race a fixed port and never need to know how binding works.
+ * Pass `port` to bring a restarted server back on the port a closed test left behind.
  */
 export async function startServer(
   args: string[],
-  options: { env?: Record<string, string> } = {},
+  options: { env?: Record<string, string>; port?: number } = {},
 ): Promise<RunningServer> {
   if (!existsSync(binaryPath)) {
     throw new Error(`fttyd binary not found at ${binaryPath}; run \`cargo build\` first`);
   }
 
-  const child: ChildProcess = spawn(binaryPath, ["-p", "0", ...args], {
+  const child: ChildProcess = spawn(binaryPath, ["-p", String(options.port ?? 0), ...args], {
     stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, ...options.env },
   });

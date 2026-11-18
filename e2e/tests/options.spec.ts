@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 
-import { startServer } from "../src/server";
+import { startServer, type RunningServer } from "../src/server";
 import { screenText, waitForConnected } from "../src/terminal";
 import { handshake, handshakeWhileHeld } from "../src/ws";
 
@@ -144,6 +144,36 @@ test("-t rendererType selects the DOM renderer mid-session", async ({ page }) =>
     await expect.poll(async () => page.locator(".xterm-rows > div").count()).toBeGreaterThan(0);
   } finally {
     await server.stop();
+  }
+});
+
+test("-t disableReconnect keeps a dropped session instead of opening a new shell", async ({
+  page,
+}) => {
+  // A server restart closes every session with 1001, which the client normally treats
+  // as "reconnect": a new shell appears and the old session, its scrollback and its
+  // working directory are gone without the user asking. This test restarts the server
+  // on the same port so the reconnect would succeed if it happened.
+  const args = ["-W", "-t", "disableReconnect=true", "bash", "--norc", "--noprofile"];
+  const first = await startServer(args);
+  let second: RunningServer | null = null;
+  try {
+    await page.goto(first.baseURL);
+    await waitForConnected(page);
+
+    first.signal("SIGTERM");
+    await first.exited();
+    second = await startServer(args, { port: first.port });
+
+    await expect
+      .poll(async () => page.locator(".terminal-overlay").textContent(), { timeout: 20_000 })
+      .toBe("Press \u23ce to Reconnect");
+    // Still waiting, so nothing reconnected and no new shell replaced the session.
+    await page.waitForTimeout(3_000);
+    await expect(page.locator(".terminal-overlay")).toHaveText("Press \u23ce to Reconnect");
+  } finally {
+    await second?.stop();
+    await first.stop();
   }
 });
 
