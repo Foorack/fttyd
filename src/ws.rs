@@ -21,8 +21,11 @@ const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(30);
 const EXIT_GRACE: Duration = Duration::from_secs(5);
 /// How long to keep flushing output after the child exited.
 const DRAIN_GRACE: Duration = Duration::from_millis(200);
-/// ttyd hangs up on a client that has been silent for `interval + 7` seconds.
-const HANGUP_SLACK_SECS: u64 = 7;
+/// How long a client may be silent before its session is reaped. A browser that
+/// freezes a background tab stops answering pings until the tab is shown again, so a
+/// short grace kills live sessions: ttyd hangs up after 10 s and loses them. The timer
+/// exists to reap a peer that vanished without a close, and five minutes still does.
+const HANGUP_AFTER: Duration = Duration::from_secs(300);
 /// How often the child's working directory is checked for the sidebar.
 const CWD_POLL_INTERVAL: Duration = Duration::from_millis(1000);
 
@@ -179,7 +182,6 @@ async fn run_session(
     mut stream: futures_util::stream::SplitStream<WebSocket>,
 ) {
     let ping_interval = Duration::from_secs(cfg.ping_interval.max(1));
-    let hangup_after = ping_interval + Duration::from_secs(HANGUP_SLACK_SECS);
     let mut ping = tokio::time::interval(ping_interval);
     ping.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
@@ -212,10 +214,11 @@ async fn run_session(
             }
 
             _ = ping.tick() => {
-                // Drop silent peers the way ttyd's libwebsockets retry policy does.
-                if last_rx.elapsed() > hangup_after {
+                // Reap a peer that went away without closing, which a frozen tab does
+                // not do. The browser answers pings again as soon as it is shown.
+                if last_rx.elapsed() > HANGUP_AFTER {
                     tracing::info!(
-                        "session ended after {:?}: no traffic from the client for {hangup_after:?}",
+                        "session ended after {:?}: no traffic from the client for {HANGUP_AFTER:?}",
                         started.elapsed()
                     );
                     break true;

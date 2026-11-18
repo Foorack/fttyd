@@ -108,6 +108,9 @@ Each of these is deliberate, and each is a case where ttyd's behaviour costs the
 - **Numeric options reject trailing garbage** (`-p 8080x`) instead of truncating.
 - **`-t` takes one `key=value` per occurrence**, as its own `--help` documents.
 - **Two protocol additions**, both invisible to ttyd's client: the `3` cwd frame and `/api/*`.
+- **A silent client is reaped after five minutes, not ten seconds.** Browsers freeze background
+  tabs, and a frozen tab answers no ping until it is shown again, so ttyd's short hangup kills a
+  session the user is still using. The timer only has to catch a peer that vanished without a close.
 
 ## Build system notes
 

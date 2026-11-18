@@ -67,6 +67,58 @@ export async function handshakeWhileHeld(
   }
 }
 
+/**
+ * Opens a session and then goes quiet, like a browser tab that was frozen: the socket
+ * stays open but no ping is ever answered. `pings()` counts what the server sent while
+ * the client said nothing.
+ */
+export async function openQuietClient(port: number): Promise<{
+  ended(): boolean;
+  pings(): number;
+  close(): void;
+}> {
+  const key = Buffer.from(
+    Array.from({ length: 16 }, () => Math.floor(Math.random() * 256)),
+  ).toString("base64");
+  const request = [
+    "GET /ws HTTP/1.1",
+    `Host: 127.0.0.1:${port}`,
+    "Upgrade: websocket",
+    "Connection: Upgrade",
+    `Sec-WebSocket-Key: ${key}`,
+    "Sec-WebSocket-Version: 13",
+    "Sec-WebSocket-Protocol: tty",
+    "",
+    "",
+  ].join("\r\n");
+
+  const { socket } = await open(port, request);
+  const payload = Buffer.from(JSON.stringify({ columns: 80, rows: 24 }), "utf8");
+  const mask = Buffer.from([0x11, 0x22, 0x33, 0x44]);
+  const masked = Buffer.from(payload.map((byte, index) => byte ^ mask[index % 4]));
+  socket.write(Buffer.concat([Buffer.from([0x82, 0x80 | payload.length]), mask, masked]));
+
+  let ended = false;
+  let pings = 0;
+  socket.on("close", () => {
+    ended = true;
+  });
+  socket.on("end", () => {
+    ended = true;
+  });
+  socket.on("data", (chunk: Buffer) => {
+    for (let i = 0; i < chunk.length - 1; i += 1) {
+      if (chunk[i] === 0x89 && chunk[i + 1] === 0x00) pings += 1;
+    }
+  });
+
+  return {
+    ended: () => ended,
+    pings: () => pings,
+    close: () => socket.destroy(),
+  };
+}
+
 function open(port: number, request: string): Promise<{ status: number; socket: Socket }> {
   return new Promise((resolve, reject) => {
     const socket = connect({ host: "127.0.0.1", port });

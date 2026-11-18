@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { startServer, type RunningServer } from "../src/server";
 import { runCommand, screenText, terminalSize, waitForConnected } from "../src/terminal";
+import { openQuietClient } from "../src/ws";
 
 let server: RunningServer;
 
@@ -116,5 +117,18 @@ test("basic auth challenges then accepts the credential", async ({ page }) => {
     expect(await token.text()).toBe('{"token": "dXNlcjpwYXNz"}');
   } finally {
     await secured.stop();
+  }
+});
+
+test("a client that answers no ping keeps its session", async () => {
+  // A frozen background tab holds the socket open and answers nothing. Killing that
+  // session at 12 s cost the user their shell, so the reaper now waits minutes.
+  const client = await openQuietClient(server.port);
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 18_000));
+    expect(client.pings(), "the server should still be pinging").toBeGreaterThanOrEqual(3);
+    expect(client.ended(), "the session must survive a silent client").toBe(false);
+  } finally {
+    client.close();
   }
 });
